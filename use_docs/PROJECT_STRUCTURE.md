@@ -1,13 +1,11 @@
 # AI智能食谱管理系统 - 项目架构文档
 
 ## 📋 项目概述
-
 基于AI的智能食谱管理系统，支持食材管理、智能推荐、社区分享、个性化定制等功能
 
 ## 🏗️ 技术栈
 
 ### 后端
-
 - **框架**: Spring Boot 3.x
 - **语言**: Kotlin
 - **数据库**: MySQL 8.0 + Redis
@@ -16,7 +14,6 @@
 - **认证**: JWT Token
 
 ### 前端 (Android)
-
 - **语言**: Kotlin
 - **UI框架**: Jetpack Compose
 - **本地数据库**: Room
@@ -98,37 +95,31 @@ recipe-ai-system/
 ## 🔧 核心模块说明
 
 ### 1. 用户管理模块
-
 - 注册/登录（JWT认证）
 - 偏好标签设置
 - AI学习画像管理
 
 ### 2. 食材管理模块
-
 - AI拍照识别 + 手动录入
 - 智能过期提醒（多优先级）
 - 保存方式建议
 
 ### 3. 采购管理模块
-
 - 智能采购量推荐
 - 食谱食材一键导入
 - 批量同步至食材库
 
 ### 4. 食谱社区模块
-
 - 食谱CRUD
 - AI质量评级(S/A/B/C)
 - 语音烹饪指导
 
 ### 5. 智能推荐模块
-
 - 临期食材优先推荐
 - AI自学习算法
 - 个性化权重调整
 
 ### 6. AI定制模块
-
 - 多模态食材识别
 - 专属食谱生成
 - 智能优化建议
@@ -136,14 +127,12 @@ recipe-ai-system/
 ## 🚀 快速开始
 
 ### 后端启动
-
 ```bash
 cd backend
 mvn spring-boot:run
 ```
 
 ### Android编译
-
 ```bash
 cd android
 ./gradlew assembleDebug
@@ -152,7 +141,6 @@ cd android
 ## 📝 AI接口配置
 
 ### 通义千问免费额度
-
 - 每月100万tokens免费额度
 - 支持图像识别、文本生成
 - 需要注册阿里云账号获取API Key
@@ -160,7 +148,6 @@ cd android
 配置位置: `backend/src/main/resources/application.yml`
 
 ## 🔐 环境变量
-
 ```yaml
 TONGYI_API_KEY=your_api_key
 MYSQL_HOST=localhost
@@ -169,13 +156,10 @@ REDIS_HOST=localhost
 ```
 
 ## 📊 数据库设计
-
 详见 `docs/DATABASE.md`
 
 ## 🌐 API文档
-
 详见 `docs/API.md`
 
 ## 📦 部署说明
-
 详见 `docs/DEPLOYMENT.md`
