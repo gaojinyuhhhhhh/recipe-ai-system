@@ -1,0 +1,1 @@
+data class RecognizeRequest(val imageBase64: String)
