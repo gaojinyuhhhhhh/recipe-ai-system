@@ -6,8 +6,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,11 +29,13 @@ import com.recipe.ui.ingredient.AddIngredientDialog
 import com.recipe.ui.ingredient.EditIngredientDialog
 import com.recipe.viewmodel.IngredientViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun IngredientListScreen(
     viewModel: IngredientViewModel = viewModel(),
-    onNavigateToCamera: () -> Unit = {}
+    onNavigateToCamera: () -> Unit = {},
+    onNavigateToRecommend: () -> Unit = {},
+    onNavigateToChat: () -> Unit = {}
 ) {
     val ingredients by viewModel.ingredients.collectAsState()
     val alerts by viewModel.alerts.collectAsState()
@@ -54,11 +60,26 @@ fun IngredientListScreen(
         viewModel.loadAlerts()
     }
 
+    // 下拉刷新状态
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = loading,
+        onRefresh = {
+            viewModel.loadIngredients()
+            viewModel.loadAlerts()
+        }
+    )
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("我的食材") },
                 actions = {
+                    IconButton(onClick = onNavigateToChat) {
+                        Icon(Icons.Default.SmartToy, "AI助手")
+                    }
+                    IconButton(onClick = onNavigateToRecommend) {
+                        Icon(Icons.Default.AutoAwesome, "智能推荐")
+                    }
                     IconButton(onClick = onNavigateToCamera) {
                         Icon(Icons.Default.CameraAlt, "拍照识别")
                     }
@@ -71,78 +92,90 @@ fun IngredientListScreen(
             }
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .pullRefresh(pullRefreshState)
         ) {
-            // 过期提醒区域
-            if (alerts.isNotEmpty()) {
-                AlertSection(alerts = alerts)
-            }
-
-            // 食材列表
-            when {
-                loading -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // 过期提醒区域
+                if (alerts.isNotEmpty()) {
+                    AlertSection(alerts = alerts)
                 }
-                ingredients.isEmpty() -> {
-                    // 空状态
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Default.Kitchen, null,
-                                modifier = Modifier.size(80.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                "冰箱还是空的",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                "点击 + 手动添加，或拍照识别食材",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                OutlinedButton(onClick = { showAddDialog = true }) {
-                                    Icon(Icons.Default.Add, null, Modifier.size(18.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                    Text("手动添加")
-                                }
-                                OutlinedButton(onClick = onNavigateToCamera) {
-                                    Icon(Icons.Default.CameraAlt, null, Modifier.size(18.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                    Text("拍照识别")
+
+                // 食材列表
+                when {
+                    loading && ingredients.isEmpty() -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                    ingredients.isEmpty() -> {
+                        // 空状态
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.Kitchen, null,
+                                    modifier = Modifier.size(80.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    "冰箱还是空的",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    "点击 + 手动添加，或拍照识别食材",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    OutlinedButton(onClick = { showAddDialog = true }) {
+                                        Icon(Icons.Default.Add, null, Modifier.size(18.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("手动添加")
+                                    }
+                                    OutlinedButton(onClick = onNavigateToCamera) {
+                                        Icon(Icons.Default.CameraAlt, null, Modifier.size(18.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("拍照识别")
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                else -> {
-                    LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(ingredients, key = { it.id ?: 0 }) { ingredient ->
-                            IngredientItem(
-                                ingredient = ingredient,
-                                onClick = { editingIngredient = ingredient },
-                                onConsume = { viewModel.consumeIngredient(ingredient.id!!) },
-                                onDelete = { viewModel.deleteIngredient(ingredient.id!!) }
-                            )
+                    else -> {
+                        LazyColumn(
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(ingredients, key = { it.id ?: 0 }) { ingredient ->
+                                IngredientItem(
+                                    ingredient = ingredient,
+                                    onClick = { editingIngredient = ingredient },
+                                    onConsume = { viewModel.consumeIngredient(ingredient.id!!) },
+                                    onDelete = { viewModel.deleteIngredient(ingredient.id!!) }
+                                )
+                            }
+                            // 底部留白，避免被FAB遮挡
+                            item { Spacer(modifier = Modifier.height(80.dp)) }
                         }
-                        // 底部留白，避免被FAB遮挡
-                        item { Spacer(modifier = Modifier.height(80.dp)) }
                     }
                 }
             }
+
+            // 下拉刷新指示器
+            PullRefreshIndicator(
+                refreshing = loading,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
         }
     }
 

@@ -26,7 +26,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.recipe.data.local.TokenManager
 import com.recipe.ui.IngredientListScreen
+import com.recipe.ui.ai.AiChatScreen
+import com.recipe.ui.ai.RecommendScreen
 import com.recipe.ui.camera.CameraScreen
+import com.recipe.ui.camera.RecognitionResultScreen
 import com.recipe.ui.recipe.CreateRecipeScreen
 import com.recipe.ui.recipe.EditRecipeScreen
 import com.recipe.ui.recipe.RecipeDetailScreen
@@ -35,6 +38,7 @@ import com.recipe.ui.shopping.ShoppingScreen
 import com.recipe.ui.theme.RecipeAITheme
 import com.recipe.ui.user.*
 import com.recipe.viewmodel.AuthViewModel
+import com.recipe.viewmodel.IngredientViewModel
 
 /**
  * 底部导航项定义
@@ -75,7 +79,10 @@ fun RecipeApp() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val authViewModel: AuthViewModel = viewModel()
+    val ingredientViewModel: IngredientViewModel = viewModel()
     val isLoggedIn by authViewModel.isLoggedIn.collectAsState()
+    val recognizedItems by ingredientViewModel.recognizedIngredients.collectAsState()
+    val ingredientsList by ingredientViewModel.ingredients.collectAsState()
 
     val bottomNavItems = listOf(
         BottomNavItem.Ingredients,
@@ -154,7 +161,10 @@ fun RecipeApp() {
             // 主Tab页面
             composable(BottomNavItem.Ingredients.route) {
                 IngredientListScreen(
-                    onNavigateToCamera = { navController.navigate("camera") }
+                    viewModel = ingredientViewModel,
+                    onNavigateToCamera = { navController.navigate("camera") },
+                    onNavigateToRecommend = { navController.navigate("ai_recommend") },
+                    onNavigateToChat = { navController.navigate("ai_chat") }
                 )
             }
             composable(BottomNavItem.Recipes.route) {
@@ -221,6 +231,17 @@ fun RecipeApp() {
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToEdit = { id ->
                         navController.navigate("edit_recipe/$id")
+                    },
+                    onNavigateToShopping = {
+                        // 先返回，再跳转到购物清单，避免导航栈混乱
+                        navController.popBackStack()
+                        navController.navigate(BottomNavItem.Shopping.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 )
             }
@@ -244,10 +265,46 @@ fun RecipeApp() {
             // 其他子页面
             composable("camera") {
                 CameraScreen(
-                    onImageCaptured = { _ ->
-                        navController.popBackStack()
+                    onImageCaptured = { base64 ->
+                        ingredientViewModel.recognizeImage(base64) { _ ->
+                            navController.navigate("recognition_result")
+                        }
                     },
                     onDismiss = { navController.popBackStack() }
+                )
+            }
+
+            // AI识别结果页
+            composable("recognition_result") {
+                RecognitionResultScreen(
+                    recognizedItems = recognizedItems,
+                    onNavigateBack = {
+                        ingredientViewModel.clearRecognized()
+                        navController.popBackStack()
+                    },
+                    onAddAll = {
+                        ingredientViewModel.addRecognizedIngredients(recognizedItems)
+                        navController.popBackStack()
+                    },
+                    viewModel = ingredientViewModel
+                )
+            }
+
+            // AI智能推荐页
+            composable("ai_recommend") {
+                val ingredientNames = ingredientsList.map { it.name }
+                RecommendScreen(
+                    ingredientNames = ingredientNames,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            // AI对话助手页
+            composable("ai_chat") {
+                val chatIngredientNames = ingredientsList.map { it.name }
+                AiChatScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    ingredientNames = chatIngredientNames
                 )
             }
         }

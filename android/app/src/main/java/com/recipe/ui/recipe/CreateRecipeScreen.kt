@@ -215,15 +215,38 @@ fun CreateRecipeScreen(
                             label = { Text("用量") },
                             singleLine = true
                         )
-                        OutlinedTextField(
-                            value = ing.unit,
-                            onValueChange = { v ->
-                                ingredients = ingredients.toMutableList().also { it[index] = it[index].copy(unit = v) }
-                            },
-                            modifier = Modifier.weight(1f),
-                            label = { Text("单位") },
-                            singleLine = true
-                        )
+                        // 单位下拉选择
+                        val units = listOf("g", "kg", "ml", "L", "个", "根", "把", "包", "瓶", "盒", "勺", "杯")
+                        var unitExpanded by remember { mutableStateOf(false) }
+                        ExposedDropdownMenuBox(
+                            expanded = unitExpanded,
+                            onExpandedChange = { unitExpanded = it },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            OutlinedTextField(
+                                value = ing.unit,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("单位") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = unitExpanded) },
+                                modifier = Modifier.menuAnchor(),
+                                singleLine = true
+                            )
+                            ExposedDropdownMenu(
+                                expanded = unitExpanded,
+                                onDismissRequest = { unitExpanded = false }
+                            ) {
+                                units.forEach { u ->
+                                    DropdownMenuItem(
+                                        text = { Text(u) },
+                                        onClick = {
+                                            ingredients = ingredients.toMutableList().also { it[index] = it[index].copy(unit = u) }
+                                            unitExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
                         if (ingredients.size > 1) {
                             IconButton(
                                 onClick = {

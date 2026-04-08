@@ -5,8 +5,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,7 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.recipe.data.model.Recipe
 import com.recipe.viewmodel.RecipeViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun RecipeScreen(
     recipeViewModel: RecipeViewModel = viewModel(),
@@ -37,6 +41,18 @@ fun RecipeScreen(
 
     val difficulties = listOf("EASY" to "简单", "MEDIUM" to "中等", "HARD" to "困难")
 
+    // 下拉刷新状态
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isLoading,
+        onRefresh = {
+            if (isSearching) {
+                recipeViewModel.searchRecipes(searchText, difficulty = selectedDifficulty)
+            } else {
+                recipeViewModel.loadHotRecipes()
+            }
+        }
+    )
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -52,186 +68,198 @@ fun RecipeScreen(
             }
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .pullRefresh(pullRefreshState)
         ) {
-            // 搜索栏
-            OutlinedTextField(
-                value = searchText,
-                onValueChange = { searchText = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("搜索食谱...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (searchText.isNotBlank()) {
-                        IconButton(onClick = {
-                            searchText = ""
-                            recipeViewModel.clearSearch()
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = "清除")
-                        }
-                    }
-                },
-                singleLine = true
-            )
-
-            // 难度筛选
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Column(
+                modifier = Modifier.fillMaxSize()
             ) {
-                item {
-                    FilterChip(
-                        selected = selectedDifficulty == null,
-                        onClick = {
-                            selectedDifficulty = null
-                            if (searchText.isNotBlank()) {
-                                recipeViewModel.searchRecipes(searchText, difficulty = null)
-                            }
-                        },
-                        label = { Text("全部") }
-                    )
-                }
-                items(difficulties) { (value, label) ->
-                    FilterChip(
-                        selected = selectedDifficulty == value,
-                        onClick = {
-                            selectedDifficulty = if (selectedDifficulty == value) null else value
-                            recipeViewModel.searchRecipes(
-                                searchText,
-                                difficulty = if (selectedDifficulty == value) value else null
-                            )
-                        },
-                        label = { Text(label) }
-                    )
-                }
-            }
-
-            // 搜索按钮
-            if (searchText.isNotBlank()) {
-                Button(
-                    onClick = {
-                        recipeViewModel.searchRecipes(searchText, difficulty = selectedDifficulty)
-                    },
+                // 搜索栏
+                OutlinedTextField(
+                    value = searchText,
+                    onValueChange = { searchText = it },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                ) {
-                    Icon(Icons.Default.Search, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("搜索")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // 内容区域
-            if (isLoading && hotRecipes.isEmpty() && searchResults.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else if (isSearching) {
-                // 搜索结果
-                if (searchResults.isEmpty() && !isLoading) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Default.SearchOff,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("没有找到相关食谱", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        item {
-                            Text(
-                                "搜索结果 (${searchResults.size})",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        items(searchResults) { recipe ->
-                            RecipeCard(recipe = recipe, onClick = {
-                                recipe.id?.let { onNavigateToDetail(it) }
-                            })
-                        }
-                    }
-                }
-            } else {
-                // 热门食谱列表
-                if (hotRecipes.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Default.MenuBook,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                "暂无食谱",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                "快来创建你的第一道食谱吧",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            OutlinedButton(onClick = { recipeViewModel.loadHotRecipes() }) {
-                                Icon(Icons.Default.Refresh, contentDescription = null)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("刷新")
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    placeholder = { Text("搜索食谱...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (searchText.isNotBlank()) {
+                            IconButton(onClick = {
+                                searchText = ""
+                                recipeViewModel.clearSearch()
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "清除")
                             }
                         }
+                    },
+                    singleLine = true
+                )
+
+                // 难度筛选
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        FilterChip(
+                            selected = selectedDifficulty == null,
+                            onClick = {
+                                selectedDifficulty = null
+                                if (searchText.isNotBlank()) {
+                                    recipeViewModel.searchRecipes(searchText, difficulty = null)
+                                }
+                            },
+                            label = { Text("全部") }
+                        )
                     }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        item {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.LocalFireDepartment,
-                                    contentDescription = null,
-                                    tint = Color(0xFFFF5722),
-                                    modifier = Modifier.size(24.dp)
+                    items(difficulties) { (value, label) ->
+                        FilterChip(
+                            selected = selectedDifficulty == value,
+                            onClick = {
+                                selectedDifficulty = if (selectedDifficulty == value) null else value
+                                recipeViewModel.searchRecipes(
+                                    searchText,
+                                    difficulty = if (selectedDifficulty == value) value else null
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
+                            },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+
+                // 搜索按钮
+                if (searchText.isNotBlank()) {
+                    Button(
+                        onClick = {
+                            recipeViewModel.searchRecipes(searchText, difficulty = selectedDifficulty)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.Search, contentDescription = null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("搜索")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // 内容区域
+                if (isLoading && hotRecipes.isEmpty() && searchResults.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else if (isSearching) {
+                    // 搜索结果
+                    if (searchResults.isEmpty() && !isLoading) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.SearchOff,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("没有找到相关食谱", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            item {
                                 Text(
-                                    "热门食谱",
+                                    "搜索结果 (${searchResults.size})",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
+                            items(searchResults) { recipe ->
+                                RecipeCard(recipe = recipe, onClick = {
+                                    recipe.id?.let { onNavigateToDetail(it) }
+                                })
+                            }
                         }
-                        items(hotRecipes) { recipe ->
-                            RecipeCard(recipe = recipe, onClick = {
-                                recipe.id?.let { onNavigateToDetail(it) }
-                            })
+                    }
+                } else {
+                    // 热门食谱列表
+                    if (hotRecipes.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.MenuBook,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    "暂无食谱",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "快来创建你的第一道食谱吧",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                OutlinedButton(onClick = { recipeViewModel.loadHotRecipes() }) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("刷新")
+                                }
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            item {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.LocalFireDepartment,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFF5722),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        "热门食谱",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            items(hotRecipes) { recipe ->
+                                RecipeCard(recipe = recipe, onClick = {
+                                    recipe.id?.let { onNavigateToDetail(it) }
+                                })
+                            }
                         }
                     }
                 }
             }
+
+            // 下拉刷新指示器
+            PullRefreshIndicator(
+                refreshing = isLoading,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
         }
     }
 }

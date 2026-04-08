@@ -18,6 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.recipe.data.local.TokenManager
 import com.recipe.viewmodel.RecipeViewModel
+import com.recipe.viewmodel.ShoppingViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,7 +28,9 @@ fun RecipeDetailScreen(
     recipeId: Long,
     onNavigateBack: () -> Unit,
     onNavigateToEdit: (Long) -> Unit = {},
-    recipeViewModel: RecipeViewModel = viewModel()
+    onNavigateToShopping: () -> Unit = {},
+    recipeViewModel: RecipeViewModel = viewModel(),
+    shoppingViewModel: ShoppingViewModel = viewModel()
 ) {
     val detail by recipeViewModel.recipeDetail.collectAsState()
     val isLoading by recipeViewModel.isLoading.collectAsState()
@@ -41,6 +46,7 @@ fun RecipeDetailScreen(
     val isOwner = detail?.recipe?.userId == currentUserId
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(recipeId) {
         recipeViewModel.loadRecipeDetail(recipeId)
@@ -294,30 +300,58 @@ fun RecipeDetailScreen(
                                 Color(0xFFFF9800).copy(alpha = 0.1f)
                         )
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(12.dp)
                         ) {
-                            Icon(
-                                if (canMake) Icons.Default.CheckCircle else Icons.Default.Warning,
-                                contentDescription = null,
-                                tint = if (canMake) Color(0xFF4CAF50) else Color(0xFFFF9800)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    if (canMake) "食材齐全，可以制作！" else "缺少 ${missing.size} 种食材",
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.bodyMedium
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    if (canMake) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = if (canMake) Color(0xFF4CAF50) else Color(0xFFFF9800)
                                 )
-                                if (missing.isNotEmpty()) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        "缺少: ${missing.joinToString("、")}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        if (canMake) "食材齐全，可以制作！" else "缺少 ${missing.size} 种食材",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.bodyMedium
                                     )
+                                    if (missing.isNotEmpty()) {
+                                        Text(
+                                            "缺少: ${missing.joinToString("、")}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            // 导入到购物清单按钮
+                            if (!canMake && missing.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = {
+                                        shoppingViewModel.importFromRecipe(recipeId)
+                                        // 显示提示
+                                        recipeViewModel.showToast("已将缺少的食材添加到购物清单")
+                                        // 延迟刷新食谱详情，重新检查食材匹配状态
+                                        coroutineScope.launch {
+                                            delay(500)
+                                            recipeViewModel.loadRecipeDetail(recipeId)
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Icon(Icons.Default.ShoppingCart, null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("导入缺少的食材到购物清单")
                                 }
                             }
                         }

@@ -464,4 +464,11 @@ class RecipeViewModel : ViewModel() {
     fun clearToast() {
         _toastMessage.value = null
     }
+
+    /**
+     * 显示提示消息
+     */
+    fun showToast(message: String) {
+        _toastMessage.value = message
+    }
 }

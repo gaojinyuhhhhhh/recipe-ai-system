@@ -6,6 +6,8 @@ import com.recipe.data.model.Ingredient
 import com.recipe.data.model.Recipe
 import com.recipe.data.model.RecipeComment
 import com.recipe.data.model.RecipeDetail
+import com.recipe.data.model.RecognizedIngredient
+import com.recipe.data.model.ShoppingItem
 import retrofit2.http.*
 
 interface ApiService {
@@ -123,12 +125,12 @@ interface ApiService {
     // ==================== 采购清单 ====================
 
     @POST("shopping")
-    suspend fun addShoppingItem(@Body item: Map<String, @JvmSuppressWildcards Any?>): ApiResponse<Any>
+    suspend fun addShoppingItem(@Body item: Map<String, @JvmSuppressWildcards Any?>): ApiResponse<ShoppingItem>
 
     @GET("shopping")
     suspend fun getShoppingList(
         @Query("completed") completed: Boolean = false
-    ): ApiResponse<List<Any>>
+    ): ApiResponse<List<ShoppingItem>>
 
     @PUT("shopping/complete")
     suspend fun completeShoppingItems(@Body request: Map<String, List<Long>>): ApiResponse<Int>
@@ -137,7 +139,7 @@ interface ApiService {
     suspend fun syncToIngredients(@Body request: Map<String, List<Long>>): ApiResponse<Any>
 
     @POST("shopping/import-recipe/{recipeId}")
-    suspend fun importFromRecipe(@Path("recipeId") recipeId: Long): ApiResponse<List<Any>>
+    suspend fun importFromRecipe(@Path("recipeId") recipeId: Long): ApiResponse<List<ShoppingItem>>
 
     @DELETE("shopping/{id}")
     suspend fun deleteShoppingItem(@Path("id") id: Long): ApiResponse<Any>
@@ -166,6 +168,12 @@ interface ApiService {
 
     @POST("ai/add-missing-to-shopping")
     suspend fun addMissingToShopping(@Body request: Map<String, @JvmSuppressWildcards Any?>): ApiResponse<Any>
+
+    @POST("ai/recognize-ingredients")
+    suspend fun recognizeIngredients(@Body request: Map<String, String>): ApiResponse<List<RecognizedIngredient>>
+
+    @POST("ai/suggest-by-ingredients")
+    suspend fun suggestByIngredients(@Body request: Map<String, @JvmSuppressWildcards Any?>): ApiResponse<Map<String, @JvmSuppressWildcards Any?>>
 }
 
 // ==================== 请求/响应数据类 ====================

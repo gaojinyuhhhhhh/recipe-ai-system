@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.recipe.data.local.TokenManager
 import com.recipe.data.model.ExpiryAlert
 import com.recipe.data.model.Ingredient
-import com.recipe.data.remote.RecognizeRequest
+import com.recipe.data.model.RecognizedIngredient
 import com.recipe.data.remote.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,22 +32,33 @@ class IngredientViewModel : ViewModel() {
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage
 
+    // AI识别结果
+    private val _recognizedIngredients = MutableStateFlow<List<RecognizedIngredient>>(emptyList())
+    val recognizedIngredients: StateFlow<List<RecognizedIngredient>> = _recognizedIngredients
+
     fun clearToast() { _toastMessage.value = null }
     fun clearError() { _error.value = null }
+    fun clearRecognized() { _recognizedIngredients.value = emptyList() }
 
     // 加载食材列表
     fun loadIngredients() {
         viewModelScope.launch {
             try {
                 _loading.value = true
+                val userId = TokenManager.getUserId()
+                Log.d("IngredientVM", "Loading ingredients for userId: $userId")
                 val response = api.getIngredients()
+                Log.d("IngredientVM", "Response: success=${response.success}, data size=${response.data?.size}")
                 if (response.success) {
                     _ingredients.value = response.data ?: emptyList()
+                    Log.d("IngredientVM", "Loaded ${_ingredients.value.size} ingredients")
                 } else {
                     _error.value = response.message
+                    Log.e("IngredientVM", "Error: ${response.message}")
                 }
             } catch (e: Exception) {
                 _error.value = "网络错误: ${e.message}"
+                Log.e("IngredientVM", "Exception: ${e.message}", e)
             } finally {
                 _loading.value = false
             }
@@ -167,24 +178,89 @@ class IngredientViewModel : ViewModel() {
         }
     }
 
-    // AI识别食材
-    fun recognizeImage(imageBase64: String) {
+    // AI识别食材（新API）
+    fun recognizeImage(imageBase64: String, onSuccess: (List<RecognizedIngredient>) -> Unit = {}) {
         viewModelScope.launch {
             try {
                 _loading.value = true
-                val request = RecognizeRequest(imageBase64)
-                val response = api.recognizeIngredient(request)
+                val response = api.recognizeIngredients(mapOf("imageBase64" to imageBase64))
                 if (response.success) {
-                    loadIngredients()
-                    _toastMessage.value = "识别成功"
+                    val items = response.data ?: emptyList()
+                    _recognizedIngredients.value = items
+                    onSuccess(items)
                 } else {
-                    _error.value = response.message
+                    _error.value = response.message ?: "识别失败"
                 }
             } catch (e: Exception) {
                 _error.value = "识别失败: ${e.message}"
             } finally {
                 _loading.value = false
             }
+        }
+    }
+
+    // 批量添加识别的食材到食材库
+    fun addRecognizedIngredients(ingredients: List<RecognizedIngredient>) {
+        viewModelScope.launch {
+            try {
+                _loading.value = true
+                var successCount = 0
+                ingredients.forEach { recognized ->
+                    val ingredient = Ingredient(
+                        userId = TokenManager.getUserId(),
+                        name = recognized.name,
+                        category = recognized.category,
+                        quantity = parseQuantity(recognized.estimatedWeight),
+                        unit = parseUnit(recognized.estimatedWeight),
+                        purchaseDate = LocalDate.now().toString(),
+                        expiryDate = recognized.getExpiryDate(),
+                        storageMethod = mapStorageMethod(recognized.getStorageMethodDisplay())
+                    )
+                    try {
+                        val response = api.addIngredient(ingredient)
+                        if (response.success) successCount++
+                    } catch (e: Exception) {
+                        Log.e("IngredientVM", "添加食材失败: ${recognized.name}", e)
+                    }
+                }
+                _toastMessage.value = "成功添加 $successCount 种食材"
+                loadIngredients()
+                loadAlerts()
+                clearRecognized()
+            } catch (e: Exception) {
+                _toastMessage.value = "添加失败: ${e.message}"
+            } finally {
+                _loading.value = false
+            }
+        }
+    }
+
+    // 解析数量
+    private fun parseQuantity(weightStr: String): Double? {
+        return try {
+            val regex = Regex("([0-9.]+)")
+            val match = regex.find(weightStr)
+            match?.groupValues?.get(1)?.toDouble()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    // 解析单位
+    private fun parseUnit(weightStr: String): String? {
+        return when {
+            weightStr.contains("g") || weightStr.contains("克") -> "g"
+            weightStr.contains("kg") || weightStr.contains("千克") -> "kg"
+            weightStr.contains("ml") || weightStr.contains("毫升") -> "ml"
+            weightStr.contains("L") || weightStr.contains("升") -> "L"
+            weightStr.contains("个") -> "个"
+            weightStr.contains("根") -> "根"
+            weightStr.contains("把") -> "把"
+            weightStr.contains("包") -> "包"
+            weightStr.contains("瓶") -> "瓶"
+            weightStr.contains("盒") -> "盒"
+            weightStr.contains("斤") -> "斤"
+            else -> null
         }
     }
 
