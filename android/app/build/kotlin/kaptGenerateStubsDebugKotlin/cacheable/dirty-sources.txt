@@ -1,0 +1,9 @@
+D:\recipe-ai-system\android\app\src\main\java\com\recipe\data\model\ApiResponse.kt
+D:\recipe-ai-system\android\app\src\main\java\com\recipe\data\model\Ingredient.kt
+D:\recipe-ai-system\android\app\src\main\java\com\recipe\data\remote\ApiService.kt
+D:\recipe-ai-system\android\app\src\main\java\com\recipe\MainActivity.kt
+D:\recipe-ai-system\android\app\src\main\java\com\recipe\ui\camera\CameraScreen.kt
+D:\recipe-ai-system\android\app\src\main\java\com\recipe\viewmodel\IngredientViewModel.kt
+D:\recipe-ai-system\android\app\src\main\java\com\recipe\data\remote\RetrofitClient.kt
+D:\recipe-ai-system\android\app\src\main\java\com\recipe\ui\IngredientListScreen.kt
+D:\recipe-ai-system\android\app\src\main\java\com\recipe\data\remote\RecognizeRequest.kt

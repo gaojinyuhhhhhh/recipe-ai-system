@@ -82,6 +82,7 @@ interface RecipeRepository : JpaRepository<Recipe, Long> {
 @Repository
 interface RecipeCommentRepository : JpaRepository<RecipeComment, Long> {
     fun findByRecipeIdOrderByCreatedAtDesc(recipeId: Long): List<RecipeComment>
+    fun findByUserIdOrderByCreatedAtDesc(userId: Long): List<RecipeComment>
     fun countByRecipeId(recipeId: Long): Long
 }
 

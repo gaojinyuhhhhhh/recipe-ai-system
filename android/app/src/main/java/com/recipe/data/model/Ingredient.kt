@@ -1,4 +1,10 @@
-// Ingredient.kt
+package com.recipe.data.model
+
+import androidx.compose.ui.graphics.Color
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
+
 data class Ingredient(
     val id: Long? = null,
     val userId: Long,
@@ -18,8 +24,21 @@ data class Ingredient(
 ) {
     fun getRemainingDays(): Int? {
         if (expiryDate == null) return null
-        val expiry = LocalDate.parse(expiryDate)
-        return ChronoUnit.DAYS.between(LocalDate.now(), expiry).toInt()
+        return try {
+            val expiry = parseFlexibleDate(expiryDate)
+            ChronoUnit.DAYS.between(LocalDate.now(), expiry).toInt()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun parseFlexibleDate(dateStr: String): LocalDate {
+        // 支持 yyyy-MM-dd 和 yyyy-M-d 等格式
+        return try {
+            LocalDate.parse(dateStr)
+        } catch (e: Exception) {
+            LocalDate.parse(dateStr, DateTimeFormatter.ofPattern("yyyy-M-d"))
+        }
     }
     
     fun getPriorityColor(): Color {

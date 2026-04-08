@@ -1,5 +1,6 @@
 package com.recipe.controller
 
+import com.recipe.dto.ApiResponse
 import com.recipe.entity.*
 import com.recipe.service.RecipeService
 import org.springframework.http.ResponseEntity
@@ -13,17 +14,17 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/recipes")
 class RecipeController(
     private val recipeService: RecipeService
-) {
+) : BaseController() {
     
     /**
      * 创建食谱
      */
     @PostMapping
     fun createRecipe(
-        @RequestHeader("user-id") userId: Long,
         @RequestBody recipe: Recipe
     ): ResponseEntity<ApiResponse<Recipe>> {
         return try {
+            val userId = currentUserId()
             recipe.userId = userId
             val saved = recipeService.createRecipe(recipe)
             ResponseEntity.ok(ApiResponse.success(saved, "创建成功，AI评级: ${saved.aiRating?.display}"))
@@ -37,10 +38,10 @@ class RecipeController(
      */
     @PostMapping("/{id}/optimize")
     fun optimizeRecipe(
-        @RequestHeader("user-id") userId: Long,
         @PathVariable id: Long
     ): ResponseEntity<ApiResponse<Recipe>> {
         return try {
+            val userId = currentUserId()
             val optimized = recipeService.optimizeRecipe(id, userId)
             ResponseEntity.ok(ApiResponse.success(optimized, "已生成AI优化版食谱"))
         } catch (e: Exception) {
@@ -53,11 +54,11 @@ class RecipeController(
      */
     @PutMapping("/{id}")
     fun updateRecipe(
-        @RequestHeader("user-id") userId: Long,
         @PathVariable id: Long,
         @RequestBody recipe: Recipe
     ): ResponseEntity<ApiResponse<Recipe>> {
         return try {
+            val userId = currentUserId()
             val updated = recipeService.updateRecipe(id, userId, recipe)
             ResponseEntity.ok(ApiResponse.success(updated, "更新成功"))
         } catch (e: Exception) {
@@ -70,12 +71,12 @@ class RecipeController(
      */
     @DeleteMapping("/{id}")
     fun deleteRecipe(
-        @RequestHeader("user-id") userId: Long,
         @PathVariable id: Long
-    ): ResponseEntity<ApiResponse<Unit>> {
+    ): ResponseEntity<ApiResponse<String>> {
         return try {
+            val userId = currentUserId()
             recipeService.deleteRecipe(id, userId)
-            ResponseEntity.ok(ApiResponse.success(null, "删除成功"))
+            ResponseEntity.ok(ApiResponse.success("deleted", "删除成功"))
         } catch (e: Exception) {
             ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "删除失败"))
         }
@@ -86,10 +87,10 @@ class RecipeController(
      */
     @GetMapping("/{id}")
     fun getRecipeDetail(
-        @PathVariable id: Long,
-        @RequestHeader(value = "user-id", required = false) userId: Long?
+        @PathVariable id: Long
     ): ResponseEntity<ApiResponse<Any>> {
         return try {
+            val userId = try { currentUserId() } catch (e: Exception) { null }
             val detail = recipeService.getRecipeDetail(id, userId)
             ResponseEntity.ok(ApiResponse.success(detail))
         } catch (e: Exception) {
@@ -126,9 +127,8 @@ class RecipeController(
      * 查询用户的食谱
      */
     @GetMapping("/my")
-    fun getMyRecipes(
-        @RequestHeader("user-id") userId: Long
-    ): ResponseEntity<ApiResponse<List<Recipe>>> {
+    fun getMyRecipes(): ResponseEntity<ApiResponse<List<Recipe>>> {
+        val userId = currentUserId()
         val recipes = recipeService.getUserRecipes(userId)
         return ResponseEntity.ok(ApiResponse.success(recipes))
     }
@@ -137,9 +137,8 @@ class RecipeController(
      * 查询用户收藏的食谱
      */
     @GetMapping("/favorites")
-    fun getFavorites(
-        @RequestHeader("user-id") userId: Long
-    ): ResponseEntity<ApiResponse<List<Recipe>>> {
+    fun getFavorites(): ResponseEntity<ApiResponse<List<Recipe>>> {
+        val userId = currentUserId()
         val recipes = recipeService.getUserFavorites(userId)
         return ResponseEntity.ok(ApiResponse.success(recipes))
     }
@@ -149,10 +148,10 @@ class RecipeController(
      */
     @PostMapping("/{id}/favorite")
     fun toggleFavorite(
-        @RequestHeader("user-id") userId: Long,
         @PathVariable id: Long
     ): ResponseEntity<ApiResponse<Boolean>> {
         return try {
+            val userId = currentUserId()
             val isFavorited = recipeService.toggleFavorite(userId, id)
             val message = if (isFavorited) "已收藏" else "已取消收藏"
             ResponseEntity.ok(ApiResponse.success(isFavorited, message))
@@ -166,11 +165,11 @@ class RecipeController(
      */
     @PostMapping("/{id}/comments")
     fun addComment(
-        @RequestHeader("user-id") userId: Long,
         @PathVariable id: Long,
         @RequestBody request: CommentRequest
     ): ResponseEntity<ApiResponse<RecipeComment>> {
         return try {
+            val userId = currentUserId()
             val comment = RecipeComment(
                 recipeId = id,
                 userId = userId,
@@ -181,6 +180,36 @@ class RecipeController(
             ResponseEntity.ok(ApiResponse.success(saved, "评论成功"))
         } catch (e: Exception) {
             ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "评论失败"))
+        }
+    }
+
+    /**
+     * 删除评论
+     */
+    @DeleteMapping("/comments/{commentId}")
+    fun deleteComment(
+        @PathVariable commentId: Long
+    ): ResponseEntity<ApiResponse<String>> {
+        return try {
+            val userId = currentUserId()
+            recipeService.deleteComment(commentId, userId)
+            ResponseEntity.ok(ApiResponse.success("deleted", "评论已删除"))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "删除失败"))
+        }
+    }
+
+    /**
+     * 查询用户历史评论
+     */
+    @GetMapping("/my/comments")
+    fun getMyComments(): ResponseEntity<ApiResponse<List<RecipeComment>>> {
+        return try {
+            val userId = currentUserId()
+            val comments = recipeService.getUserComments(userId)
+            ResponseEntity.ok(ApiResponse.success(comments))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "查询失败"))
         }
     }
 }

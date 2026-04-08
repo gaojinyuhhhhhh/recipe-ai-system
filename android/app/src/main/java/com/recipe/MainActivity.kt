@@ -1,6 +1,61 @@
+package com.recipe
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Kitchen
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.outlined.Kitchen
+import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.ShoppingCart
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import com.recipe.data.local.TokenManager
+import com.recipe.ui.IngredientListScreen
+import com.recipe.ui.camera.CameraScreen
+import com.recipe.ui.recipe.CreateRecipeScreen
+import com.recipe.ui.recipe.EditRecipeScreen
+import com.recipe.ui.recipe.RecipeDetailScreen
+import com.recipe.ui.recipe.RecipeScreen
+import com.recipe.ui.shopping.ShoppingScreen
+import com.recipe.ui.theme.RecipeAITheme
+import com.recipe.ui.user.*
+import com.recipe.viewmodel.AuthViewModel
+
+/**
+ * 底部导航项定义
+ */
+sealed class BottomNavItem(
+    val route: String,
+    val title: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector
+) {
+    data object Ingredients : BottomNavItem("ingredients", "食材", Icons.Filled.Kitchen, Icons.Outlined.Kitchen)
+    data object Recipes : BottomNavItem("recipes", "食谱", Icons.Filled.MenuBook, Icons.Outlined.MenuBook)
+    data object Shopping : BottomNavItem("shopping", "购物", Icons.Filled.ShoppingCart, Icons.Outlined.ShoppingCart)
+    data object Profile : BottomNavItem("profile", "我的", Icons.Filled.Person, Icons.Outlined.Person)
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 初始化TokenManager
+        TokenManager.init(applicationContext)
         setContent {
             RecipeAITheme {
                 Surface(
@@ -17,22 +72,184 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun RecipeApp() {
     val navController = rememberNavController()
-    
-    NavHost(
-        navController = navController,
-        startDestination = "ingredient_list"
-    ) {
-        composable("ingredient_list") {
-            IngredientListScreen()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    val authViewModel: AuthViewModel = viewModel()
+    val isLoggedIn by authViewModel.isLoggedIn.collectAsState()
+
+    val bottomNavItems = listOf(
+        BottomNavItem.Ingredients,
+        BottomNavItem.Recipes,
+        BottomNavItem.Shopping,
+        BottomNavItem.Profile
+    )
+
+    // 只在主Tab页面显示底部导航
+    val showBottomBar = currentRoute in bottomNavItems.map { it.route }
+
+    // 确定起始页面
+    val startDestination = if (isLoggedIn) BottomNavItem.Ingredients.route else "login"
+
+    Scaffold(
+        bottomBar = {
+            if (showBottomBar) {
+                NavigationBar {
+                    bottomNavItems.forEach { item ->
+                        val selected = currentRoute == item.route
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
+                                    contentDescription = item.title
+                                )
+                            },
+                            label = { Text(item.title) }
+                        )
+                    }
+                }
+            }
         }
-        composable("camera") {
-            CameraScreen(
-                onImageCaptured = { base64 ->
-                    // 调用识别API
-                    navController.popBackStack()
-                },
-                onDismiss = { navController.popBackStack() }
-            )
+    ) { innerPadding ->
+        NavHost(
+            navController = navController,
+            startDestination = startDestination,
+            modifier = Modifier.padding(innerPadding)
+        ) {
+            // 登录页面
+            composable("login") {
+                LoginScreen(
+                    authViewModel = authViewModel,
+                    onNavigateToRegister = { navController.navigate("register") },
+                    onLoginSuccess = {
+                        navController.navigate(BottomNavItem.Ingredients.route) {
+                            popUpTo("login") { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            // 注册页面
+            composable("register") {
+                RegisterScreen(
+                    authViewModel = authViewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onRegisterSuccess = {
+                        navController.navigate(BottomNavItem.Ingredients.route) {
+                            popUpTo("login") { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            // 主Tab页面
+            composable(BottomNavItem.Ingredients.route) {
+                IngredientListScreen(
+                    onNavigateToCamera = { navController.navigate("camera") }
+                )
+            }
+            composable(BottomNavItem.Recipes.route) {
+                RecipeScreen(
+                    onNavigateToDetail = { recipeId ->
+                        navController.navigate("recipe_detail/$recipeId")
+                    },
+                    onNavigateToCreate = {
+                        navController.navigate("create_recipe")
+                    }
+                )
+            }
+            composable(BottomNavItem.Shopping.route) {
+                ShoppingScreen()
+            }
+            composable(BottomNavItem.Profile.route) {
+                ProfileScreen(
+                    onLogout = {
+                        authViewModel.logout()
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onNavigateToMyRecipes = { navController.navigate("my_recipes") },
+                    onNavigateToMyFavorites = { navController.navigate("my_favorites") },
+                    onNavigateToMyComments = { navController.navigate("my_comments") },
+                    onNavigateToPreferences = { navController.navigate("preferences") },
+                    onNavigateToAiProfile = { navController.navigate("ai_profile") }
+                )
+            }
+
+            // 个人中心子页面
+            composable("my_recipes") {
+                MyRecipesScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToDetail = { recipeId ->
+                        navController.navigate("recipe_detail/$recipeId")
+                    }
+                )
+            }
+            composable("my_favorites") {
+                MyFavoritesScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToDetail = { recipeId ->
+                        navController.navigate("recipe_detail/$recipeId")
+                    }
+                )
+            }
+            composable("my_comments") {
+                MyCommentsScreen(onNavigateBack = { navController.popBackStack() })
+            }
+            composable("preferences") {
+                PreferencesScreen(onNavigateBack = { navController.popBackStack() })
+            }
+            composable("ai_profile") {
+                AiProfileScreen(onNavigateBack = { navController.popBackStack() })
+            }
+
+            // 食谱详情页
+            composable("recipe_detail/{recipeId}") { backStackEntry ->
+                val recipeId = backStackEntry.arguments?.getString("recipeId")?.toLongOrNull() ?: 0L
+                RecipeDetailScreen(
+                    recipeId = recipeId,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToEdit = { id ->
+                        navController.navigate("edit_recipe/$id")
+                    }
+                )
+            }
+
+            // 创建食谱页
+            composable("create_recipe") {
+                CreateRecipeScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            // 编辑食谱页
+            composable("edit_recipe/{recipeId}") { backStackEntry ->
+                val recipeId = backStackEntry.arguments?.getString("recipeId")?.toLongOrNull() ?: 0L
+                EditRecipeScreen(
+                    recipeId = recipeId,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            // 其他子页面
+            composable("camera") {
+                CameraScreen(
+                    onImageCaptured = { _ ->
+                        navController.popBackStack()
+                    },
+                    onDismiss = { navController.popBackStack() }
+                )
+            }
         }
     }
 }

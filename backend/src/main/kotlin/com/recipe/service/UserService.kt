@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class UserService(
     private val userRepository: UserRepository,
-    private val passwordEncoder: BCryptPasswordEncoder = BCryptPasswordEncoder()
+    private val passwordEncoder: BCryptPasswordEncoder
 ) {
     
     /**

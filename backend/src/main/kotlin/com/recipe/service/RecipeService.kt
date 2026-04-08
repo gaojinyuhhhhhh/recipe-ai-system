@@ -2,6 +2,7 @@ package com.recipe.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.recipe.ai.RecipeGenerator
+import com.recipe.controller.SaveRecipeRequest
 import com.recipe.entity.*
 import com.recipe.repository.*
 import org.springframework.stereotype.Service
@@ -238,6 +239,35 @@ class RecipeService(
         
         return saved
     }
+
+    /**
+     * 删除评论(仅评论作者可删除)
+     */
+    @Transactional
+    fun deleteComment(commentId: Long, userId: Long) {
+        val comment = commentRepository.findById(commentId)
+            .orElseThrow { Exception("评论不存在") }
+
+        if (comment.userId != userId) {
+            throw Exception("无权限删除此评论")
+        }
+
+        commentRepository.delete(comment)
+
+        // 更新评论数
+        val recipe = recipeRepository.findById(comment.recipeId).orElse(null)
+        recipe?.let {
+            it.commentCount = maxOf(0, it.commentCount - 1)
+            recipeRepository.save(it)
+        }
+    }
+
+    /**
+     * 获取用户的所有历史评论
+     */
+    fun getUserComments(userId: Long): List<RecipeComment> {
+        return commentRepository.findByUserIdOrderByCreatedAtDesc(userId)
+    }
     
     /**
      * 收藏/取消收藏
@@ -292,6 +322,37 @@ class RecipeService(
     fun getHotRecipes(limit: Int = 10): List<Recipe> {
         return recipeRepository.findByIsPublicTrueOrderByFavoriteCountDesc()
             .take(limit)
+    }
+
+    /**
+     * 保存AI生成的食谱到个人食谱
+     */
+    @Transactional
+    fun saveGeneratedRecipe(userId: Long, request: SaveRecipeRequest): Recipe {
+        val recipe = Recipe(
+            userId = userId,
+            title = request.title,
+            description = request.description,
+            ingredients = request.ingredients,
+            steps = request.steps,
+            cookingTime = request.cookingTime,
+            difficulty = try { Difficulty.valueOf(request.difficulty) } catch (e: Exception) { Difficulty.MEDIUM },
+            cuisine = request.cuisine,
+            tags = request.tags,
+            isAiOptimized = true
+        )
+
+        // AI质量评级
+        val rating = recipeGenerator.rateRecipe(
+            recipe.ingredients,
+            recipe.steps,
+            recipe.title
+        )
+        recipe.aiRating = rating.getAiRating()
+        recipe.aiRatingDetail = objectMapper.writeValueAsString(rating.scores)
+        recipe.aiSuggestion = rating.suggestions.joinToString("\n")
+
+        return recipeRepository.save(recipe)
     }
 }
 

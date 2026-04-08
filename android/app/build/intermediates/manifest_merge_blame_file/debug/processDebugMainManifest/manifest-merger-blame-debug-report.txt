@@ -1,0 +1,217 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.recipe"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="26"
+9        android:targetSdkVersion="35" />
+10
+11    <!-- 网络权限 -->
+12    <uses-permission android:name="android.permission.INTERNET" />
+12-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:6:5-67
+12-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:6:22-64
+13    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+13-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:7:5-79
+13-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:7:22-76
+14
+15    <!-- 相机权限 -->
+16    <uses-permission android:name="android.permission.CAMERA" />
+16-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:10:5-65
+16-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:10:22-62
+17
+18    <uses-feature
+18-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:11:5-85
+19        android:name="android.hardware.camera"
+19-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:11:19-57
+20        android:required="false" />
+20-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:11:58-82
+21
+22    <!-- 存储权限 -->
+23    <uses-permission
+23-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:14:5-15:38
+24        android:name="android.permission.READ_EXTERNAL_STORAGE"
+24-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:14:22-77
+25        android:maxSdkVersion="32" />
+25-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:15:9-35
+26    <uses-permission
+26-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:16:5-18:40
+27        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+27-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:16:22-78
+28        android:maxSdkVersion="32" />
+28-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:17:9-35
+29    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+29-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:19:5-76
+29-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:19:22-73
+30
+31    <permission
+31-->[androidx.core:core:1.12.0] D:\SDK\.gradle\caches\8.14.4\transforms\95b2874270d4e0ea51528b2844f5628f\transformed\core-1.12.0\AndroidManifest.xml:22:5-24:47
+32        android:name="com.recipe.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+32-->[androidx.core:core:1.12.0] D:\SDK\.gradle\caches\8.14.4\transforms\95b2874270d4e0ea51528b2844f5628f\transformed\core-1.12.0\AndroidManifest.xml:23:9-81
+33        android:protectionLevel="signature" />
+33-->[androidx.core:core:1.12.0] D:\SDK\.gradle\caches\8.14.4\transforms\95b2874270d4e0ea51528b2844f5628f\transformed\core-1.12.0\AndroidManifest.xml:24:9-44
+34
+35    <uses-permission android:name="com.recipe.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+35-->[androidx.core:core:1.12.0] D:\SDK\.gradle\caches\8.14.4\transforms\95b2874270d4e0ea51528b2844f5628f\transformed\core-1.12.0\AndroidManifest.xml:26:5-97
+35-->[androidx.core:core:1.12.0] D:\SDK\.gradle\caches\8.14.4\transforms\95b2874270d4e0ea51528b2844f5628f\transformed\core-1.12.0\AndroidManifest.xml:26:22-94
+36
+37    <application
+37-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:21:5-54:19
+38        android:allowBackup="true"
+38-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:22:9-35
+39        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+39-->[androidx.core:core:1.12.0] D:\SDK\.gradle\caches\8.14.4\transforms\95b2874270d4e0ea51528b2844f5628f\transformed\core-1.12.0\AndroidManifest.xml:28:18-86
+40        android:dataExtractionRules="@xml/data_extraction_rules"
+40-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:23:9-65
+41        android:debuggable="true"
+42        android:extractNativeLibs="false"
+43        android:fullBackupContent="@xml/backup_rules"
+43-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:24:9-54
+44        android:icon="@mipmap/ic_launcher"
+44-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:25:9-43
+45        android:label="@string/app_name"
+45-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:26:9-41
+46        android:networkSecurityConfig="@xml/network_security_config"
+46-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:29:9-69
+47        android:roundIcon="@mipmap/ic_launcher_round"
+47-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:27:9-54
+48        android:supportsRtl="true"
+48-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:28:9-35
+49        android:theme="@style/Theme.RecipeAI" >
+49-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:30:9-46
+50        <activity
+50-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:33:9-41:20
+51            android:name="com.recipe.MainActivity"
+51-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:34:13-41
+52            android:exported="true"
+52-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:35:13-36
+53            android:theme="@style/Theme.RecipeAI" >
+53-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:36:13-50
+54            <intent-filter>
+54-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:37:13-40:29
+55                <action android:name="android.intent.action.MAIN" />
+55-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:38:17-69
+55-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:38:25-66
+56
+57                <category android:name="android.intent.category.LAUNCHER" />
+57-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:39:17-77
+57-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:39:27-74
+58            </intent-filter>
+59        </activity>
+60
+61        <!-- FileProvider for sharing images -->
+62        <provider
+63            android:name="androidx.core.content.FileProvider"
+63-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:45:13-62
+64            android:authorities="com.recipe.fileprovider"
+64-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:46:13-64
+65            android:exported="false"
+65-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:47:13-37
+66            android:grantUriPermissions="true" >
+66-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:48:13-47
+67            <meta-data
+67-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:49:13-51:54
+68                android:name="android.support.FILE_PROVIDER_PATHS"
+68-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:50:17-67
+69                android:resource="@xml/file_paths" />
+69-->D:\recipe-ai-system\android\app\src\main\AndroidManifest.xml:51:17-51
+70        </provider>
+71
+72        <!--
+73        Service for holding metadata. Cannot be instantiated.
+74        Metadata will be merged from other manifests.
+75        -->
+76        <service
+76-->[androidx.camera:camera-core:1.3.0] D:\SDK\.gradle\caches\8.14.4\transforms\78a6c37bb31423ef4f17918f76cc2d67\transformed\camera-core-1.3.0\AndroidManifest.xml:29:9-33:78
+77            android:name="androidx.camera.core.impl.MetadataHolderService"
+77-->[androidx.camera:camera-core:1.3.0] D:\SDK\.gradle\caches\8.14.4\transforms\78a6c37bb31423ef4f17918f76cc2d67\transformed\camera-core-1.3.0\AndroidManifest.xml:30:13-75
+78            android:enabled="false"
+78-->[androidx.camera:camera-core:1.3.0] D:\SDK\.gradle\caches\8.14.4\transforms\78a6c37bb31423ef4f17918f76cc2d67\transformed\camera-core-1.3.0\AndroidManifest.xml:31:13-36
+79            android:exported="false" >
+79-->[androidx.camera:camera-core:1.3.0] D:\SDK\.gradle\caches\8.14.4\transforms\78a6c37bb31423ef4f17918f76cc2d67\transformed\camera-core-1.3.0\AndroidManifest.xml:32:13-37
+80            <meta-data
+80-->[androidx.camera:camera-camera2:1.3.0] D:\SDK\.gradle\caches\8.14.4\transforms\f0254983cb90d749f23fe7aa2998239f\transformed\camera-camera2-1.3.0\AndroidManifest.xml:30:13-32:89
+81                android:name="androidx.camera.core.impl.MetadataHolderService.DEFAULT_CONFIG_PROVIDER"
+81-->[androidx.camera:camera-camera2:1.3.0] D:\SDK\.gradle\caches\8.14.4\transforms\f0254983cb90d749f23fe7aa2998239f\transformed\camera-camera2-1.3.0\AndroidManifest.xml:31:17-103
+82                android:value="androidx.camera.camera2.Camera2Config$DefaultProvider" />
+82-->[androidx.camera:camera-camera2:1.3.0] D:\SDK\.gradle\caches\8.14.4\transforms\f0254983cb90d749f23fe7aa2998239f\transformed\camera-camera2-1.3.0\AndroidManifest.xml:32:17-86
+83        </service>
+84
+85        <provider
+85-->[androidx.emoji2:emoji2:1.4.0] D:\SDK\.gradle\caches\8.14.4\transforms\91ba481f2b1fc7e361c7127cb1b4ca8d\transformed\emoji2-1.4.0\AndroidManifest.xml:24:9-32:20
+86            android:name="androidx.startup.InitializationProvider"
+86-->[androidx.emoji2:emoji2:1.4.0] D:\SDK\.gradle\caches\8.14.4\transforms\91ba481f2b1fc7e361c7127cb1b4ca8d\transformed\emoji2-1.4.0\AndroidManifest.xml:25:13-67
+87            android:authorities="com.recipe.androidx-startup"
+87-->[androidx.emoji2:emoji2:1.4.0] D:\SDK\.gradle\caches\8.14.4\transforms\91ba481f2b1fc7e361c7127cb1b4ca8d\transformed\emoji2-1.4.0\AndroidManifest.xml:26:13-68
+88            android:exported="false" >
+88-->[androidx.emoji2:emoji2:1.4.0] D:\SDK\.gradle\caches\8.14.4\transforms\91ba481f2b1fc7e361c7127cb1b4ca8d\transformed\emoji2-1.4.0\AndroidManifest.xml:27:13-37
+89            <meta-data
+89-->[androidx.emoji2:emoji2:1.4.0] D:\SDK\.gradle\caches\8.14.4\transforms\91ba481f2b1fc7e361c7127cb1b4ca8d\transformed\emoji2-1.4.0\AndroidManifest.xml:29:13-31:52
+90                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+90-->[androidx.emoji2:emoji2:1.4.0] D:\SDK\.gradle\caches\8.14.4\transforms\91ba481f2b1fc7e361c7127cb1b4ca8d\transformed\emoji2-1.4.0\AndroidManifest.xml:30:17-75
+91                android:value="androidx.startup" />
+91-->[androidx.emoji2:emoji2:1.4.0] D:\SDK\.gradle\caches\8.14.4\transforms\91ba481f2b1fc7e361c7127cb1b4ca8d\transformed\emoji2-1.4.0\AndroidManifest.xml:31:17-49
+92            <meta-data
+92-->[androidx.lifecycle:lifecycle-process:2.6.2] D:\SDK\.gradle\caches\8.14.4\transforms\27c9f6dc7d8fa9c95b73cb3fbd211c33\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:29:13-31:52
+93                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+93-->[androidx.lifecycle:lifecycle-process:2.6.2] D:\SDK\.gradle\caches\8.14.4\transforms\27c9f6dc7d8fa9c95b73cb3fbd211c33\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:30:17-78
+94                android:value="androidx.startup" />
+94-->[androidx.lifecycle:lifecycle-process:2.6.2] D:\SDK\.gradle\caches\8.14.4\transforms\27c9f6dc7d8fa9c95b73cb3fbd211c33\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:31:17-49
+95            <meta-data
+95-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:29:13-31:52
+96                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+96-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:30:17-85
+97                android:value="androidx.startup" />
+97-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:31:17-49
+98        </provider>
+99
+100        <service
+100-->[androidx.room:room-runtime:2.6.0] D:\SDK\.gradle\caches\8.14.4\transforms\7c329bb93bcd1b0bf8577162bf07ad29\transformed\room-runtime-2.6.0\AndroidManifest.xml:24:9-28:63
+101            android:name="androidx.room.MultiInstanceInvalidationService"
+101-->[androidx.room:room-runtime:2.6.0] D:\SDK\.gradle\caches\8.14.4\transforms\7c329bb93bcd1b0bf8577162bf07ad29\transformed\room-runtime-2.6.0\AndroidManifest.xml:25:13-74
+102            android:directBootAware="true"
+102-->[androidx.room:room-runtime:2.6.0] D:\SDK\.gradle\caches\8.14.4\transforms\7c329bb93bcd1b0bf8577162bf07ad29\transformed\room-runtime-2.6.0\AndroidManifest.xml:26:13-43
+103            android:exported="false" />
+103-->[androidx.room:room-runtime:2.6.0] D:\SDK\.gradle\caches\8.14.4\transforms\7c329bb93bcd1b0bf8577162bf07ad29\transformed\room-runtime-2.6.0\AndroidManifest.xml:27:13-37
+104
+105        <receiver
+105-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:34:9-52:20
+106            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+106-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:35:13-76
+107            android:directBootAware="false"
+107-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:36:13-44
+108            android:enabled="true"
+108-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:37:13-35
+109            android:exported="true"
+109-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:38:13-36
+110            android:permission="android.permission.DUMP" >
+110-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:39:13-57
+111            <intent-filter>
+111-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:40:13-42:29
+112                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+112-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:17-91
+112-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:25-88
+113            </intent-filter>
+114            <intent-filter>
+114-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:43:13-45:29
+115                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+115-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:17-85
+115-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:25-82
+116            </intent-filter>
+117            <intent-filter>
+117-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:46:13-48:29
+118                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+118-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:17-88
+118-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:25-85
+119            </intent-filter>
+120            <intent-filter>
+120-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:49:13-51:29
+121                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+121-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:17-95
+121-->[androidx.profileinstaller:profileinstaller:1.3.1] D:\SDK\.gradle\caches\8.14.4\transforms\12244238712302892f2db86784478979\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:25-92
+122            </intent-filter>
+123        </receiver>
+124    </application>
+125
+126</manifest>

@@ -1,5 +1,6 @@
 package com.recipe.controller
 
+import com.recipe.dto.ApiResponse
 import com.recipe.service.RecommendService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -12,7 +13,7 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/recommend")
 class RecommendController(
     private val recommendService: RecommendService
-) {
+) : BaseController() {
     
     /**
      * 获取个性化推荐
@@ -25,10 +26,10 @@ class RecommendController(
      */
     @GetMapping
     fun getRecommendations(
-        @RequestHeader("user-id") userId: Long,
         @RequestParam(defaultValue = "20") limit: Int
     ): ResponseEntity<ApiResponse<Any>> {
         return try {
+            val userId = currentUserId()
             val result = recommendService.getRecommendations(userId, limit)
             ResponseEntity.ok(ApiResponse.success(result))
         } catch (e: Exception) {
@@ -42,10 +43,9 @@ class RecommendController(
      * 返回能同时使用多个临期食材的食谱组合
      */
     @GetMapping("/smart-combine")
-    fun smartCombine(
-        @RequestHeader("user-id") userId: Long
-    ): ResponseEntity<ApiResponse<Any>> {
+    fun smartCombine(): ResponseEntity<ApiResponse<Any>> {
         return try {
+            val userId = currentUserId()
             val combinations = recommendService.smartCombineExpiring(userId)
             ResponseEntity.ok(ApiResponse.success(combinations))
         } catch (e: Exception) {

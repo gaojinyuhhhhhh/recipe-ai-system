@@ -1,0 +1,62 @@
+# ========== 通用规则 ==========
+# 本地配置文件（敏感信息）
+**/application-local.yml
+**/application-local.properties
+**/local.properties
+
+# 日志文件
+logs/
+*.log
+
+# 编译输出
+target/
+*.class
+**/build/
+**/bin/
+**/out/
+
+# IDE配置
+.idea/
+*.iml
+.vscode/
+*.iws
+*.ipr
+
+# 依赖
+.mvn/
+node_modules/
+
+# 打包产物
+*.jar
+*.war
+*.ear
+*.aar
+*.apk
+*.aab
+
+# ========== Android 专属规则 ==========
+# Gradle 相关
+android/.gradle/
+android/gradlew
+android/gradlew.bat
+android/gradle/
+android/local.properties
+
+# 构建产物
+android/app/build/
+android/build/
+
+# 签名文件
+*.keystore
+*.jks
+
+# 截图/临时文件
+*.png
+*.jpg
+*.jpeg
+*.gif
+emulator_screenshot.png
+
+# ========== Backend (SpringBoot) 专属规则 ==========
+backend/.gradle/
+backend/build/

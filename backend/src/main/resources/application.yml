@@ -2,9 +2,16 @@ spring:
   application:
     name: recipe-ai-backend
   
+  # Jackson配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    deserialization:
+      fail-on-unknown-properties: false
+  
   # 数据源配置
   datasource:
-    url: jdbc:mysql://localhost:3306/recipe_ai?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://localhost:3306/recipe_ai?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
     username: root
     password: your_password
     driver-class-name: com.mysql.cj.jdbc.Driver

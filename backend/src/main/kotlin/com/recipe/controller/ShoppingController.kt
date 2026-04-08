@@ -1,5 +1,6 @@
 package com.recipe.controller
 
+import com.recipe.dto.ApiResponse
 import com.recipe.entity.ShoppingItem
 import com.recipe.service.ShoppingService
 import org.springframework.http.ResponseEntity
@@ -13,17 +14,17 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/shopping")
 class ShoppingController(
     private val shoppingService: ShoppingService
-) {
+) : BaseController() {
     
     /**
      * 手动添加采购项
      */
     @PostMapping
     fun addItem(
-        @RequestHeader("user-id") userId: Long,
         @RequestBody item: ShoppingItem
     ): ResponseEntity<ApiResponse<ShoppingItem>> {
         return try {
+            val userId = currentUserId()
             item.userId = userId
             val saved = shoppingService.addItem(item)
             ResponseEntity.ok(ApiResponse.success(saved, "添加成功"))
@@ -37,10 +38,10 @@ class ShoppingController(
      */
     @PostMapping("/import-recipe/{recipeId}")
     fun importFromRecipe(
-        @RequestHeader("user-id") userId: Long,
         @PathVariable recipeId: Long
     ): ResponseEntity<ApiResponse<List<ShoppingItem>>> {
         return try {
+            val userId = currentUserId()
             val items = shoppingService.importFromRecipe(userId, recipeId)
             ResponseEntity.ok(ApiResponse.success(items, "已导入${items.size}个缺少的食材"))
         } catch (e: Exception) {
@@ -53,10 +54,10 @@ class ShoppingController(
      */
     @PostMapping("/merge-recipes")
     fun mergeRecipes(
-        @RequestHeader("user-id") userId: Long,
         @RequestBody request: MergeRequest
     ): ResponseEntity<ApiResponse<Any>> {
         return try {
+            val userId = currentUserId()
             val result = shoppingService.mergeRecipes(userId, request.recipeIds)
             ResponseEntity.ok(ApiResponse.success(result, "合并成功"))
         } catch (e: Exception) {
@@ -69,9 +70,9 @@ class ShoppingController(
      */
     @GetMapping
     fun getShoppingList(
-        @RequestHeader("user-id") userId: Long,
         @RequestParam(defaultValue = "false") completed: Boolean
     ): ResponseEntity<ApiResponse<List<ShoppingItem>>> {
+        val userId = currentUserId()
         val items = shoppingService.getUserShoppingList(userId, completed)
         return ResponseEntity.ok(ApiResponse.success(items))
     }
@@ -81,10 +82,10 @@ class ShoppingController(
      */
     @PutMapping("/complete")
     fun completeItems(
-        @RequestHeader("user-id") userId: Long,
         @RequestBody request: CompleteRequest
     ): ResponseEntity<ApiResponse<Int>> {
         return try {
+            val userId = currentUserId()
             val count = shoppingService.completeItems(userId, request.itemIds)
             ResponseEntity.ok(ApiResponse.success(count, "已完成${count}个采购项"))
         } catch (e: Exception) {
@@ -97,10 +98,10 @@ class ShoppingController(
      */
     @PostMapping("/sync-to-ingredients")
     fun syncToIngredients(
-        @RequestHeader("user-id") userId: Long,
         @RequestBody request: SyncRequest
     ): ResponseEntity<ApiResponse<Any>> {
         return try {
+            val userId = currentUserId()
             val ingredients = shoppingService.syncToIngredients(userId, request.itemIds)
             ResponseEntity.ok(ApiResponse.success(ingredients, "已同步${ingredients.size}个食材到食材库"))
         } catch (e: Exception) {
@@ -113,12 +114,12 @@ class ShoppingController(
      */
     @DeleteMapping("/{id}")
     fun deleteItem(
-        @RequestHeader("user-id") userId: Long,
         @PathVariable id: Long
-    ): ResponseEntity<ApiResponse<Unit>> {
+    ): ResponseEntity<ApiResponse<String>> {
         return try {
+            val userId = currentUserId()
             shoppingService.deleteItem(id, userId)
-            ResponseEntity.ok(ApiResponse.success(null, "删除成功"))
+            ResponseEntity.ok(ApiResponse.success("deleted", "删除成功"))
         } catch (e: Exception) {
             ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "删除失败"))
         }

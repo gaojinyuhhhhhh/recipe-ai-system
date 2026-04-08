@@ -1,5 +1,6 @@
 package com.recipe.entity
 
+import com.fasterxml.jackson.annotation.JsonFormat
 import jakarta.persistence.*
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -35,9 +36,11 @@ data class Ingredient(
     var freshness: Freshness = Freshness.FRESH,  // 新鲜度
     
     @Column(nullable = false)
+    @JsonFormat(pattern = "yyyy-M-d")
     var purchaseDate: LocalDate = LocalDate.now(),  // 购买日期
     
     @Column
+    @JsonFormat(pattern = "yyyy-M-d")
     var expiryDate: LocalDate? = null,  // 保质期
     
     @Column

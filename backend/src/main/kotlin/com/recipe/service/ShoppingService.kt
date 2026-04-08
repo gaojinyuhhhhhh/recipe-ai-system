@@ -2,6 +2,7 @@ package com.recipe.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.recipe.controller.MissingIngredientItem
 import com.recipe.entity.ShoppingItem
 import com.recipe.entity.Recipe
 import com.recipe.repository.ShoppingRepository
@@ -203,6 +204,24 @@ class ShoppingService(
         }
         
         shoppingRepository.delete(item)
+    }
+
+    /**
+     * 缺少食材一键加入采购清单
+     */
+    @Transactional
+    fun addMissingIngredients(userId: Long, ingredients: List<MissingIngredientItem>): List<ShoppingItem> {
+        return ingredients.map { ingredient ->
+            val item = ShoppingItem(
+                userId = userId,
+                name = ingredient.name,
+                category = categorizeIngredient(ingredient.name),
+                quantity = ingredient.quantity,
+                unit = ingredient.unit
+            )
+            item.aiAdvice = generatePurchaseAdvice(ingredient.name, ingredient.quantity ?: 0.0)
+            shoppingRepository.save(item)
+        }
     }
     
     /**

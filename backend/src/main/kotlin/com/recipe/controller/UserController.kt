@@ -1,5 +1,7 @@
 package com.recipe.controller
 
+import com.recipe.config.JwtUtil
+import com.recipe.dto.ApiResponse
 import com.recipe.service.UserService
 import com.recipe.service.UserUpdateRequest
 import org.springframework.http.ResponseEntity
@@ -12,8 +14,9 @@ import org.springframework.web.bind.annotation.*
 @RestController
 @RequestMapping("/users")
 class UserController(
-    private val userService: UserService
-) {
+    private val userService: UserService,
+    private val jwtUtil: JwtUtil
+) : BaseController() {
     
     /**
      * 用户注册
@@ -22,12 +25,13 @@ class UserController(
     fun register(@RequestBody request: RegisterRequest): ResponseEntity<ApiResponse<Any>> {
         return try {
             val user = userService.register(request.username, request.password, request.phone)
-            // 返回用户信息(不含密码)
+            val token = jwtUtil.generateToken(user.id!!, user.username)
             val userInfo = mapOf(
                 "id" to user.id,
                 "username" to user.username,
                 "nickname" to user.nickname,
-                "phone" to user.phone
+                "phone" to user.phone,
+                "token" to token
             )
             ResponseEntity.ok(ApiResponse.success(userInfo, "注册成功"))
         } catch (e: Exception) {
@@ -42,12 +46,12 @@ class UserController(
     fun login(@RequestBody request: LoginRequest): ResponseEntity<ApiResponse<Any>> {
         return try {
             val user = userService.login(request.username, request.password)
-            // TODO: 生成JWT Token
+            val token = jwtUtil.generateToken(user.id!!, user.username)
             val response = mapOf(
                 "id" to user.id,
                 "username" to user.username,
                 "nickname" to user.nickname,
-                "token" to "mock_token_${user.id}"  // 实际项目需要生成真实JWT
+                "token" to token
             )
             ResponseEntity.ok(ApiResponse.success(response, "登录成功"))
         } catch (e: Exception) {
@@ -59,10 +63,10 @@ class UserController(
      * 获取用户信息
      */
     @GetMapping("/me")
-    fun getUserInfo(@RequestHeader("user-id") userId: Long): ResponseEntity<ApiResponse<Any>> {
+    fun getUserInfo(): ResponseEntity<ApiResponse<Any>> {
         return try {
+            val userId = currentUserId()
             val user = userService.getUserInfo(userId)
-            // 不返回密码
             val userInfo = mapOf(
                 "id" to user.id,
                 "username" to user.username,
@@ -86,10 +90,10 @@ class UserController(
      */
     @PutMapping("/me")
     fun updateUser(
-        @RequestHeader("user-id") userId: Long,
         @RequestBody request: UserUpdateRequest
     ): ResponseEntity<ApiResponse<Any>> {
         return try {
+            val userId = currentUserId()
             val user = userService.updateUser(userId, request)
             ResponseEntity.ok(ApiResponse.success(user, "更新成功"))
         } catch (e: Exception) {
@@ -102,12 +106,12 @@ class UserController(
      */
     @PutMapping("/preferences")
     fun setPreferences(
-        @RequestHeader("user-id") userId: Long,
         @RequestBody request: PreferencesRequest
-    ): ResponseEntity<ApiResponse<Any>> {
+    ): ResponseEntity<ApiResponse<String>> {
         return try {
+            val userId = currentUserId()
             val user = userService.setPreferences(userId, request.preferences)
-            ResponseEntity.ok(ApiResponse.success(user.preferences, "偏好设置成功"))
+            ResponseEntity.ok(ApiResponse.success(user.preferences ?: "", "偏好设置成功"))
         } catch (e: Exception) {
             ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "设置失败"))
         }
@@ -117,10 +121,11 @@ class UserController(
      * 重置AI画像
      */
     @PostMapping("/reset-ai-profile")
-    fun resetAiProfile(@RequestHeader("user-id") userId: Long): ResponseEntity<ApiResponse<Unit>> {
+    fun resetAiProfile(): ResponseEntity<ApiResponse<String>> {
         return try {
+            val userId = currentUserId()
             userService.resetAiProfile(userId)
-            ResponseEntity.ok(ApiResponse.success(null, "AI画像已重置"))
+            ResponseEntity.ok(ApiResponse.success("reset", "AI画像已重置"))
         } catch (e: Exception) {
             ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "重置失败"))
         }
@@ -131,12 +136,12 @@ class UserController(
      */
     @PutMapping("/change-password")
     fun changePassword(
-        @RequestHeader("user-id") userId: Long,
         @RequestBody request: ChangePasswordRequest
-    ): ResponseEntity<ApiResponse<Unit>> {
+    ): ResponseEntity<ApiResponse<String>> {
         return try {
+            val userId = currentUserId()
             userService.changePassword(userId, request.oldPassword, request.newPassword)
-            ResponseEntity.ok(ApiResponse.success(null, "密码修改成功"))
+            ResponseEntity.ok(ApiResponse.success("changed", "密码修改成功"))
         } catch (e: Exception) {
             ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "修改失败"))
         }
