@@ -12,8 +12,8 @@ import retrofit2.http.*
 
 interface ApiService {
     companion object {
-        const val BASE_URL = "http://10.0.2.2:8080/api/"  // 模拟器使用
-        // const val BASE_URL = "http://192.168.1.100:8080/api/"  // 真机使用
+        // const val BASE_URL = "http://10.0.2.2:8080/api/"  // 模拟器使用
+        const val BASE_URL = "http://192.168.185.95:8080/api/"  // 真机使用 - WiFi IP
     }
 
     // ==================== 用户认证 ====================
@@ -133,10 +133,10 @@ interface ApiService {
     ): ApiResponse<List<ShoppingItem>>
 
     @PUT("shopping/complete")
-    suspend fun completeShoppingItems(@Body request: Map<String, List<Long>>): ApiResponse<Int>
+    suspend fun completeShoppingItems(@Body request: Map<String, @JvmSuppressWildcards List<Long>>): ApiResponse<Int>
 
     @POST("shopping/sync-to-ingredients")
-    suspend fun syncToIngredients(@Body request: Map<String, List<Long>>): ApiResponse<Any>
+    suspend fun syncToIngredients(@Body request: Map<String, @JvmSuppressWildcards List<Long>>): ApiResponse<Any>
 
     @POST("shopping/import-recipe/{recipeId}")
     suspend fun importFromRecipe(@Path("recipeId") recipeId: Long): ApiResponse<List<ShoppingItem>>

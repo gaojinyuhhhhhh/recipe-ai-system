@@ -1,5 +1,6 @@
 package com.recipe.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.recipe.data.model.ShoppingItem
@@ -158,11 +159,15 @@ class ShoppingViewModel : ViewModel() {
             try {
                 val response = api.completeShoppingItems(mapOf("itemIds" to listOf(itemId)))
                 if (response.success) {
+                    _toastMessage.value = response.message ?: "已完成并添加到食材库"
                     loadPendingItems()
                     loadCompletedItems()
+                } else {
+                    _toastMessage.value = response.message ?: "操作失败"
                 }
             } catch (e: Exception) {
-                _toastMessage.value = "操作失败"
+                _toastMessage.value = "操作失败: ${e.message}"
+                Log.e("ShoppingVM", "完成采购项失败", e)
             }
         }
     }

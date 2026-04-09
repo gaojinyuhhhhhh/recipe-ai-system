@@ -28,6 +28,7 @@ import com.recipe.data.local.TokenManager
 import com.recipe.ui.IngredientListScreen
 import com.recipe.ui.ai.AiChatScreen
 import com.recipe.ui.ai.RecommendScreen
+import com.recipe.ui.ai.RecipeDetailFromRecommendScreen
 import com.recipe.ui.camera.CameraScreen
 import com.recipe.ui.camera.RecognitionResultScreen
 import com.recipe.ui.recipe.CreateRecipeScreen
@@ -295,7 +296,22 @@ fun RecipeApp() {
                 val ingredientNames = ingredientsList.map { it.name }
                 RecommendScreen(
                     ingredientNames = ingredientNames,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToRecipeDetail = { recipeName, mainIngredients ->
+                        navController.navigate("ai_recipe_detail/$recipeName")
+                    }
+                )
+            }
+
+            // AI生成的完整食谱详情页
+            composable("ai_recipe_detail/{recipeName}") { backStackEntry ->
+                val recipeName = backStackEntry.arguments?.getString("recipeName") ?: ""
+                val currentIngredients = ingredientsList.map { it.name }
+                RecipeDetailFromRecommendScreen(
+                    recipeName = recipeName,
+                    mainIngredients = currentIngredients,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToMyRecipes = { navController.navigate("my_recipes") }
                 )
             }
 

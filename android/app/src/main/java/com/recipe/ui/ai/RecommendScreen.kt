@@ -1,6 +1,7 @@
 package com.recipe.ui.ai
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,6 +25,7 @@ import com.recipe.viewmodel.SuggestedRecipe
 fun RecommendScreen(
     ingredientNames: List<String>,
     onNavigateBack: () -> Unit,
+    onNavigateToRecipeDetail: (recipeName: String, ingredients: List<String>) -> Unit = { _, _ -> },
     recommendViewModel: RecommendViewModel = viewModel()
 ) {
     val suggestedRecipes by recommendViewModel.suggestedRecipes.collectAsState()
@@ -214,7 +216,12 @@ fun RecommendScreen(
                             }
                         }
                         items(suggestedRecipes) { recipe ->
-                            SuggestedRecipeCard(recipe = recipe)
+                            SuggestedRecipeCard(
+                                recipe = recipe,
+                                onClick = {
+                                    onNavigateToRecipeDetail(recipe.name, recipe.mainIngredients)
+                                }
+                            )
                         }
                         item {
                             Spacer(modifier = Modifier.height(8.dp))
@@ -239,11 +246,16 @@ fun RecommendScreen(
 }
 
 @Composable
-fun SuggestedRecipeCard(recipe: SuggestedRecipe) {
+fun SuggestedRecipeCard(
+    recipe: SuggestedRecipe,
+    onClick: () -> Unit = {}
+) {
     var expanded by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
