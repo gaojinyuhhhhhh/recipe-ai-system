@@ -4,7 +4,10 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.recipe.data.model.ShoppingItem
+import com.recipe.data.remote.CompleteAndAddRequest
+import com.recipe.data.remote.CustomIngredientInfo
 import com.recipe.data.remote.RetrofitClient
+import com.recipe.ui.shopping.InferredIngredientInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -30,8 +33,105 @@ class ShoppingViewModel : ViewModel() {
     private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
     val selectedIds: StateFlow<Set<Long>> = _selectedIds
 
+    // 当前处理的采购项（用于AI确认对话框）
+    private val _currentProcessingItem = MutableStateFlow<ShoppingItem?>(null)
+    val currentProcessingItem: StateFlow<ShoppingItem?> = _currentProcessingItem
+
+    // AI推断的食材信息
+    private val _inferredInfo = MutableStateFlow<InferredIngredientInfo?>(null)
+    val inferredInfo: StateFlow<InferredIngredientInfo?> = _inferredInfo
+
     init {
         loadPendingItems()
+    }
+
+    fun clearToast() { _toastMessage.value = null }
+
+    /**
+     * 开始处理单个采购项（AI推断→确认→入库）
+     */
+    fun startProcessingItem(item: ShoppingItem) {
+        _currentProcessingItem.value = item
+        _inferredInfo.value = null
+
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                // 调用AI推断接口
+                val response = api.inferIngredientInfo(mapOf("name" to item.name))
+                if (response.success && response.data != null) {
+                    val data = response.data
+                    _inferredInfo.value = InferredIngredientInfo(
+                        shelfLife = data.shelfLife,
+                        storageMethod = data.storageMethod,
+                        storageAdvice = data.storageAdvice,
+                        freshness = data.freshness
+                    )
+                } else {
+                    // 使用默认值
+                    _inferredInfo.value = InferredIngredientInfo()
+                }
+            } catch (e: Exception) {
+                Log.e("ShoppingVM", "AI推断失败", e)
+                // 使用默认值
+                _inferredInfo.value = InferredIngredientInfo()
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * 取消处理
+     */
+    fun cancelProcessing() {
+        _currentProcessingItem.value = null
+        _inferredInfo.value = null
+    }
+
+    /**
+     * 确认并添加到食材库
+     * 使用用户修改后的实际购买数量
+     */
+    fun confirmAndAddToIngredients(info: InferredIngredientInfo) {
+        val item = _currentProcessingItem.value ?: return
+
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+
+                // 构建自定义信息，包含用户修改后的实际数量
+                val customInfo = CustomIngredientInfo(
+                    shelfLife = info.shelfLife,
+                    storageMethod = info.storageMethod,
+                    storageAdvice = info.storageAdvice,
+                    freshness = info.freshness,
+                    actualQuantity = info.actualQuantity,
+                    unit = info.unit
+                )
+
+                // 调用完成并添加接口，传递用户修改的信息
+                val request = CompleteAndAddRequest(
+                    itemIds = listOf(item.id!!),
+                    customInfo = customInfo
+                )
+                val response = api.completeAndAddToIngredients(request)
+
+                if (response.success) {
+                    _toastMessage.value = "${item.name} 已添加到食材库"
+                    _currentProcessingItem.value = null
+                    _inferredInfo.value = null
+                    loadPendingItems()
+                } else {
+                    _toastMessage.value = response.message ?: "添加失败"
+                }
+            } catch (e: Exception) {
+                _toastMessage.value = "添加失败: ${e.message}"
+                Log.e("ShoppingVM", "确认添加失败", e)
+            } finally {
+                _isLoading.value = false
+            }
+        }
     }
 
     /**
@@ -228,9 +328,5 @@ class ShoppingViewModel : ViewModel() {
                 _toastMessage.value = "导入失败"
             }
         }
-    }
-
-    fun clearToast() {
-        _toastMessage.value = null
     }
 }

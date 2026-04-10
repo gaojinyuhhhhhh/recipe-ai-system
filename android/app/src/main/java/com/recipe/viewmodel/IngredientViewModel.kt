@@ -36,6 +36,14 @@ class IngredientViewModel : ViewModel() {
     private val _recognizedIngredients = MutableStateFlow<List<RecognizedIngredient>>(emptyList())
     val recognizedIngredients: StateFlow<List<RecognizedIngredient>> = _recognizedIngredients
 
+    // 按新鲜度分组的食材
+    private val _ingredientsByFreshness = MutableStateFlow<Map<String, List<Ingredient>>>(emptyMap())
+    val ingredientsByFreshness: StateFlow<Map<String, List<Ingredient>>> = _ingredientsByFreshness
+
+    // 按类别分组的食材
+    private val _ingredientsByCategory = MutableStateFlow<Map<String, List<Ingredient>>>(emptyMap())
+    val ingredientsByCategory: StateFlow<Map<String, List<Ingredient>>> = _ingredientsByCategory
+
     fun clearToast() { _toastMessage.value = null }
     fun clearError() { _error.value = null }
     fun clearRecognized() { _recognizedIngredients.value = emptyList() }
@@ -75,6 +83,34 @@ class IngredientViewModel : ViewModel() {
                 }
             } catch (e: Exception) {
                 Log.e("IngredientVM", "加载提醒失败", e)
+            }
+        }
+    }
+
+    // 加载按新鲜度分组的食材
+    fun loadIngredientsByFreshness() {
+        viewModelScope.launch {
+            try {
+                val response = api.getIngredientsByFreshness()
+                if (response.success) {
+                    _ingredientsByFreshness.value = response.data ?: emptyMap()
+                }
+            } catch (e: Exception) {
+                Log.e("IngredientVM", "加载新鲜度分组失败", e)
+            }
+        }
+    }
+
+    // 加载按类别分组的食材
+    fun loadIngredientsByCategory() {
+        viewModelScope.launch {
+            try {
+                val response = api.getIngredientsByCategory()
+                if (response.success) {
+                    _ingredientsByCategory.value = response.data ?: emptyMap()
+                }
+            } catch (e: Exception) {
+                Log.e("IngredientVM", "加载类别分组失败", e)
             }
         }
     }

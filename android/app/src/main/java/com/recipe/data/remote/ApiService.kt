@@ -12,8 +12,8 @@ import retrofit2.http.*
 
 interface ApiService {
     companion object {
-        // const val BASE_URL = "http://10.0.2.2:8080/api/"  // 模拟器使用
-        const val BASE_URL = "http://192.168.185.95:8080/api/"  // 真机使用 - WiFi IP
+        const val BASE_URL = "http://10.0.2.2:8080/api/"  // 模拟器使用
+        // const val BASE_URL = "http://192.168.185.95:8080/api/"  // 真机使用 - WiFi IP
     }
 
     // ==================== 用户认证 ====================
@@ -71,6 +71,12 @@ interface ApiService {
     @PUT("ingredients/{id}/consume")
     suspend fun consumeIngredient(@Path("id") id: Long): ApiResponse<Ingredient>
 
+    @GET("ingredients/by-freshness")
+    suspend fun getIngredientsByFreshness(): ApiResponse<Map<String, @JvmSuppressWildcards List<Ingredient>>>
+
+    @GET("ingredients/by-category")
+    suspend fun getIngredientsByCategory(): ApiResponse<Map<String, @JvmSuppressWildcards List<Ingredient>>>
+
     // ==================== 食谱社区 ====================
 
     @POST("recipes")
@@ -121,6 +127,18 @@ interface ApiService {
 
     @POST("recipes/{id}/optimize")
     suspend fun optimizeRecipe(@Path("id") id: Long): ApiResponse<Any>
+
+    @GET("recipes/{id}/comments")
+    suspend fun getRecipeComments(@Path("id") id: Long): ApiResponse<List<RecipeComment>>
+
+    @POST("recipes/{id}/clone")
+    suspend fun cloneRecipe(@Path("id") id: Long): ApiResponse<Recipe>
+
+    @POST("recipes/{id}/unpublish")
+    suspend fun unpublishRecipe(@Path("id") id: Long): ApiResponse<Recipe>
+
+    @GET("recipes/{id}/author")
+    suspend fun getRecipeAuthor(@Path("id") id: Long): ApiResponse<Map<String, @JvmSuppressWildcards Any?>>
 
     // ==================== 采购清单 ====================
 
@@ -174,9 +192,48 @@ interface ApiService {
 
     @POST("ai/suggest-by-ingredients")
     suspend fun suggestByIngredients(@Body request: Map<String, @JvmSuppressWildcards Any?>): ApiResponse<Map<String, @JvmSuppressWildcards Any?>>
+
+    @POST("ai/ingredient-info")
+    suspend fun inferIngredientInfo(@Body request: Map<String, String>): ApiResponse<IngredientInfoResponse>
+
+    @POST("ai/complete-and-add")
+    suspend fun completeAndAddToIngredients(@Body request: CompleteAndAddRequest): ApiResponse<List<Ingredient>>
+
+    @POST("ai/assist-create-recipe")
+    suspend fun assistCreateRecipe(@Body request: Map<String, @JvmSuppressWildcards Any?>): ApiResponse<Map<String, @JvmSuppressWildcards Any?>>
 }
 
 // ==================== 请求/响应数据类 ====================
+
+/**
+ * AI推断食材信息响应
+ */
+data class IngredientInfoResponse(
+    val shelfLife: Int,
+    val storageMethod: String,
+    val storageAdvice: String,
+    val freshness: String
+)
+
+/**
+ * 完成并添加到食材库请求
+ */
+data class CompleteAndAddRequest(
+    val itemIds: List<Long>,
+    val customInfo: CustomIngredientInfo? = null
+)
+
+/**
+ * 用户自定义食材信息
+ */
+data class CustomIngredientInfo(
+    val shelfLife: Int,
+    val storageMethod: String,
+    val storageAdvice: String,
+    val freshness: String,
+    val actualQuantity: Double? = null,  // 用户实际购买的数量
+    val unit: String? = null             // 单位
+)
 
 data class RegisterRequest(
     val username: String,

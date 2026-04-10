@@ -64,6 +64,9 @@ data class Recipe(
     @Column(nullable = false)
     var isAiOptimized: Boolean = false,  // 是否AI优化版
     
+    @Column(nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
+    var isAiGenerated: Boolean = false,  // 是否AI生成（AI推荐食谱）
+    
     @Column
     var originalRecipeId: Long? = null,  // 原始食谱ID(如果是优化版)
     

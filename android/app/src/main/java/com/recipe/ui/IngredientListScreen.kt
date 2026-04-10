@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,6 +30,12 @@ import com.recipe.ui.ingredient.AddIngredientDialog
 import com.recipe.ui.ingredient.EditIngredientDialog
 import com.recipe.viewmodel.IngredientViewModel
 
+// 视图模式枚举
+enum class IngredientViewMode {
+    BY_FRESHNESS,  // 按新鲜度分组
+    BY_CATEGORY    // 按类别分组
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun IngredientListScreen(
@@ -38,12 +45,15 @@ fun IngredientListScreen(
     onNavigateToChat: () -> Unit = {}
 ) {
     val ingredients by viewModel.ingredients.collectAsState()
+    val ingredientsByFreshness by viewModel.ingredientsByFreshness.collectAsState()
+    val ingredientsByCategory by viewModel.ingredientsByCategory.collectAsState()
     val alerts by viewModel.alerts.collectAsState()
     val loading by viewModel.loading.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
     var editingIngredient by remember { mutableStateOf<Ingredient?>(null) }
+    var viewMode by remember { mutableStateOf(IngredientViewMode.BY_FRESHNESS) }
 
     val context = LocalContext.current
 
@@ -58,6 +68,8 @@ fun IngredientListScreen(
     LaunchedEffect(Unit) {
         viewModel.loadIngredients()
         viewModel.loadAlerts()
+        viewModel.loadIngredientsByFreshness()
+        viewModel.loadIngredientsByCategory()
     }
 
     // 下拉刷新状态
@@ -106,6 +118,25 @@ fun IngredientListScreen(
                     AlertSection(alerts = alerts)
                 }
 
+                // Tab切换
+                TabRow(
+                    selectedTabIndex = viewMode.ordinal,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Tab(
+                        selected = viewMode == IngredientViewMode.BY_FRESHNESS,
+                        onClick = { viewMode = IngredientViewMode.BY_FRESHNESS },
+                        text = { Text("按新鲜度") },
+                        icon = { Icon(Icons.Default.Timer, null) }
+                    )
+                    Tab(
+                        selected = viewMode == IngredientViewMode.BY_CATEGORY,
+                        onClick = { viewMode = IngredientViewMode.BY_CATEGORY },
+                        text = { Text("按类别") },
+                        icon = { Icon(Icons.Default.Category, null) }
+                    )
+                }
+
                 // 食材列表
                 when {
                     loading && ingredients.isEmpty() -> {
@@ -151,20 +182,24 @@ fun IngredientListScreen(
                         }
                     }
                     else -> {
-                        LazyColumn(
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(ingredients, key = { it.id ?: 0 }) { ingredient ->
-                                IngredientItem(
-                                    ingredient = ingredient,
-                                    onClick = { editingIngredient = ingredient },
-                                    onConsume = { viewModel.consumeIngredient(ingredient.id!!) },
-                                    onDelete = { viewModel.deleteIngredient(ingredient.id!!) }
+                        // 根据视图模式显示不同列表
+                        when (viewMode) {
+                            IngredientViewMode.BY_FRESHNESS -> {
+                                FreshnessGroupedList(
+                                    groupedIngredients = ingredientsByFreshness,
+                                    onItemClick = { editingIngredient = it },
+                                    onConsume = { viewModel.consumeIngredient(it.id!!) },
+                                    onDelete = { viewModel.deleteIngredient(it.id!!) }
                                 )
                             }
-                            // 底部留白，避免被FAB遮挡
-                            item { Spacer(modifier = Modifier.height(80.dp)) }
+                            IngredientViewMode.BY_CATEGORY -> {
+                                CategoryGroupedList(
+                                    groupedIngredients = ingredientsByCategory,
+                                    onItemClick = { editingIngredient = it },
+                                    onConsume = { viewModel.consumeIngredient(it.id!!) },
+                                    onDelete = { viewModel.deleteIngredient(it.id!!) }
+                                )
+                            }
                         }
                     }
                 }
@@ -206,12 +241,18 @@ fun IngredientItem(
     ingredient: Ingredient,
     onClick: () -> Unit,
     onConsume: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    highlight: Boolean = false
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick),
+        colors = if (highlight) {
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+            )
+        } else CardDefaults.cardColors()
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -298,6 +339,265 @@ fun IngredientItem(
                 )
             }
         }
+    }
+}
+
+/**
+ * 按新鲜度分组的食材列表
+ */
+@Composable
+fun FreshnessGroupedList(
+    groupedIngredients: Map<String, List<Ingredient>>,
+    onItemClick: (Ingredient) -> Unit,
+    onConsume: (Ingredient) -> Unit,
+    onDelete: (Ingredient) -> Unit
+) {
+    LazyColumn(
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // 即将过期 (3天内)
+        val expiringSoon = groupedIngredients["expiringSoon"] ?: emptyList()
+        if (expiringSoon.isNotEmpty()) {
+            item {
+                FreshnessSectionHeader(
+                    title = "即将过期 (${expiringSoon.size})",
+                    color = Color(0xFFE53935),  // 红色
+                    icon = Icons.Default.Warning
+                )
+            }
+            items(expiringSoon, key = { "exp_${it.id}" }) { ingredient ->
+                IngredientItem(
+                    ingredient = ingredient,
+                    onClick = { onItemClick(ingredient) },
+                    onConsume = { onConsume(ingredient) },
+                    onDelete = { onDelete(ingredient) },
+                    highlight = true
+                )
+            }
+        }
+
+        // 新鲜食材 (4-7天)
+        val fresh = groupedIngredients["fresh"] ?: emptyList()
+        if (fresh.isNotEmpty()) {
+            item {
+                FreshnessSectionHeader(
+                    title = "新鲜食材 (${fresh.size})",
+                    color = Color(0xFFFFA726),  // 橙色
+                    icon = Icons.Default.CheckCircle
+                )
+            }
+            items(fresh, key = { "fresh_${it.id}" }) { ingredient ->
+                IngredientItem(
+                    ingredient = ingredient,
+                    onClick = { onItemClick(ingredient) },
+                    onConsume = { onConsume(ingredient) },
+                    onDelete = { onDelete(ingredient) }
+                )
+            }
+        }
+
+        // 长期保存 (7天以上)
+        val longTerm = groupedIngredients["longTerm"] ?: emptyList()
+        if (longTerm.isNotEmpty()) {
+            item {
+                FreshnessSectionHeader(
+                    title = "长期保存 (${longTerm.size})",
+                    color = Color(0xFF66BB6A),  // 绿色
+                    icon = Icons.Default.CalendarToday
+                )
+            }
+            items(longTerm, key = { "long_${it.id}" }) { ingredient ->
+                IngredientItem(
+                    ingredient = ingredient,
+                    onClick = { onItemClick(ingredient) },
+                    onConsume = { onConsume(ingredient) },
+                    onDelete = { onDelete(ingredient) }
+                )
+            }
+        }
+
+        // 底部留白
+        item { Spacer(modifier = Modifier.height(80.dp)) }
+    }
+}
+
+/**
+ * 新鲜度分组头部
+ */
+@Composable
+fun FreshnessSectionHeader(
+    title: String,
+    color: Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = color,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Divider(
+            modifier = Modifier.weight(1f),
+            color = color.copy(alpha = 0.3f)
+        )
+    }
+}
+
+/**
+ * 按类别分组的食材列表
+ */
+@Composable
+fun CategoryGroupedList(
+    groupedIngredients: Map<String, List<Ingredient>>,
+    onItemClick: (Ingredient) -> Unit,
+    onConsume: (Ingredient) -> Unit,
+    onDelete: (Ingredient) -> Unit
+) {
+    // 类别顺序和图标映射（标准9大类别）
+    val categoryOrder = listOf(
+        "肉类" to Icons.Default.Restaurant,
+        "海鲜" to Icons.Default.Water,
+        "蔬菜类" to Icons.Default.Spa,
+        "水果" to Icons.Default.ShoppingBasket,
+        "蛋奶" to Icons.Default.Egg,
+        "豆制品" to Icons.Default.Grain,
+        "调味类" to Icons.Default.LocalDining,
+        "粮油" to Icons.Default.Grass,
+        "干货" to Icons.Default.Inventory
+    )
+
+    // 获取图标映射
+    fun getCategoryIcon(categoryName: String): androidx.compose.ui.graphics.vector.ImageVector {
+        return categoryOrder.find { it.first == categoryName }?.second 
+            ?: Icons.Default.Folder  // 默认图标
+    }
+
+    // 调试：打印所有返回的类别
+    LaunchedEffect(groupedIngredients) {
+        android.util.Log.d("CategoryGroupedList", "返回的类别: ${groupedIngredients.keys}")
+        groupedIngredients.forEach { (k, v) ->
+            android.util.Log.d("CategoryGroupedList", "类别 '$k': ${v.size} 个食材")
+        }
+    }
+
+    LazyColumn(
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // 先显示标准9大类别（按预设顺序），包括空的类别
+        categoryOrder.forEach { (categoryName, icon) ->
+            val ingredients = groupedIngredients[categoryName] ?: emptyList()
+            // 始终显示该类别，即使为空
+            item {
+                CategorySectionHeader(
+                    title = "$categoryName (${ingredients.size})",
+                    icon = icon
+                )
+            }
+            if (ingredients.isNotEmpty()) {
+                items(ingredients, key = { "${categoryName}_${it.id}" }) { ingredient ->
+                    IngredientItem(
+                        ingredient = ingredient,
+                        onClick = { onItemClick(ingredient) },
+                        onConsume = { onConsume(ingredient) },
+                        onDelete = { onDelete(ingredient) }
+                    )
+                }
+            }
+        }
+
+        // 显示其他非标准类别（如数据库中有但不在标准9类中的）
+        val standardCategories = categoryOrder.map { it.first } + "未分类"
+        groupedIngredients.forEach { (categoryName, ingredients) ->
+            if (categoryName !in standardCategories && ingredients.isNotEmpty()) {
+                item {
+                    CategorySectionHeader(
+                        title = "$categoryName (${ingredients.size})",
+                        icon = getCategoryIcon(categoryName)
+                    )
+                }
+                items(ingredients, key = { "${categoryName}_${it.id}" }) { ingredient ->
+                    IngredientItem(
+                        ingredient = ingredient,
+                        onClick = { onItemClick(ingredient) },
+                        onConsume = { onConsume(ingredient) },
+                        onDelete = { onDelete(ingredient) }
+                    )
+                }
+            }
+        }
+
+        // 未分类（始终显示）
+        val uncategorized = groupedIngredients["未分类"] ?: emptyList()
+        item {
+            CategorySectionHeader(
+                title = "未分类 (${uncategorized.size})",
+                icon = Icons.Default.HelpOutline
+            )
+        }
+        if (uncategorized.isNotEmpty()) {
+            items(uncategorized, key = { "uncat_${it.id}" }) { ingredient ->
+                IngredientItem(
+                    ingredient = ingredient,
+                    onClick = { onItemClick(ingredient) },
+                    onConsume = { onConsume(ingredient) },
+                    onDelete = { onDelete(ingredient) }
+                )
+            }
+        }
+
+        // 底部留白
+        item { Spacer(modifier = Modifier.height(80.dp)) }
+    }
+}
+
+/**
+ * 类别分组头部
+ */
+@Composable
+fun CategorySectionHeader(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Divider(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+        )
     }
 }
 

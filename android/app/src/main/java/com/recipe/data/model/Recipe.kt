@@ -25,7 +25,10 @@ data class Recipe(
     val commentCount: Long = 0,
     val isPublic: Boolean = true,
     val createdAt: String? = null,
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
+    val authorName: String? = null,   // 作者昵称
+    val authorAvatar: String? = null,  // 作者头像
+    val isAiGenerated: Boolean = false  // 是否AI生成
 ) {
     fun getDifficultyDisplay(): String = when (difficulty) {
         "EASY" -> "简单"
@@ -54,22 +57,45 @@ data class RecipeDetail(
 )
 
 /**
- * 食谱食材项
+ * 食谱食材项 - 统一对象格式
+ * 与后端 RecipeIngredient 保持一致
  */
 data class RecipeIngredient(
     val name: String = "",
-    val quantity: Any? = null,
-    val unit: String? = null
-)
+    val quantity: Double? = null,
+    val unit: String? = null,
+    val notes: String? = null
+) {
+    /**
+     * 获取显示文本，如 "2个 鸡蛋"
+     */
+    fun getDisplayText(): String {
+        val qtyStr = when {
+            quantity == null -> ""
+            quantity == quantity.toLong().toDouble() -> quantity.toLong().toString()
+            else -> quantity.toString()
+        }
+        val unitStr = unit ?: ""
+        return if (qtyStr.isNotBlank() && unitStr.isNotBlank()) {
+            "$qtyStr$unitStr $name"
+        } else if (qtyStr.isNotBlank()) {
+            "$qtyStr $name"
+        } else {
+            name
+        }
+    }
+}
 
 /**
- * 食谱步骤项
+ * 食谱步骤项 - 统一对象格式
+ * 与后端 RecipeStep 保持一致
  */
 data class RecipeStep(
     val step: Int = 0,
     val content: String = "",
     val duration: Int? = null,
-    val image: String? = null
+    val temperature: String? = null,
+    val tips: String? = null
 )
 
 /**
@@ -79,6 +105,7 @@ data class RecipeComment(
     val id: Long? = null,
     val recipeId: Long = 0,
     val userId: Long = 0,
+    val username: String? = null,
     val content: String = "",
     val rating: Int? = null,
     val createdAt: String? = null

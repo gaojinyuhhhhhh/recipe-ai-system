@@ -68,6 +68,7 @@ class RecipeController(
     
     /**
      * 删除食谱
+     * 注意：已发布到社区的食谱不能直接删除，需要先下架
      */
     @DeleteMapping("/{id}")
     fun deleteRecipe(
@@ -79,6 +80,23 @@ class RecipeController(
             ResponseEntity.ok(ApiResponse.success("deleted", "删除成功"))
         } catch (e: Exception) {
             ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "删除失败"))
+        }
+    }
+
+    /**
+     * 下架食谱（从社区移除，转为私有）
+     * 下架后可以在本地食谱管理中删除
+     */
+    @PostMapping("/{id}/unpublish")
+    fun unpublishRecipe(
+        @PathVariable id: Long
+    ): ResponseEntity<ApiResponse<Recipe>> {
+        return try {
+            val userId = currentUserId()
+            val recipe = recipeService.unpublishRecipe(id, userId)
+            ResponseEntity.ok(ApiResponse.success(recipe, "食谱已从社区下架"))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "下架失败"))
         }
     }
     
@@ -99,7 +117,7 @@ class RecipeController(
     }
     
     /**
-     * 搜索食谱
+     * 搜索食谱(带作者信息)
      */
     @GetMapping("/search")
     fun searchRecipes(
@@ -107,37 +125,37 @@ class RecipeController(
         @RequestParam(required = false) cuisine: String?,
         @RequestParam(required = false) difficulty: Difficulty?,
         @RequestParam(required = false) tags: List<String>?
-    ): ResponseEntity<ApiResponse<List<Recipe>>> {
+    ): ResponseEntity<ApiResponse<List<Map<String, Any?>>>> {
         val recipes = recipeService.searchRecipes(keyword, cuisine, difficulty, tags)
         return ResponseEntity.ok(ApiResponse.success(recipes))
     }
     
     /**
-     * 热门食谱
+     * 热门食谱(带作者信息)
      */
     @GetMapping("/hot")
     fun getHotRecipes(
         @RequestParam(defaultValue = "10") limit: Int
-    ): ResponseEntity<ApiResponse<List<Recipe>>> {
+    ): ResponseEntity<ApiResponse<List<Map<String, Any?>>>> {
         val recipes = recipeService.getHotRecipes(limit)
         return ResponseEntity.ok(ApiResponse.success(recipes))
     }
     
     /**
-     * 查询用户的食谱
+     * 查询用户的食谱(带作者信息)
      */
     @GetMapping("/my")
-    fun getMyRecipes(): ResponseEntity<ApiResponse<List<Recipe>>> {
+    fun getMyRecipes(): ResponseEntity<ApiResponse<List<Map<String, Any?>>>> {
         val userId = currentUserId()
         val recipes = recipeService.getUserRecipes(userId)
         return ResponseEntity.ok(ApiResponse.success(recipes))
     }
     
     /**
-     * 查询用户收藏的食谱
+     * 查询用户收藏的食谱(带作者信息)
      */
     @GetMapping("/favorites")
-    fun getFavorites(): ResponseEntity<ApiResponse<List<Recipe>>> {
+    fun getFavorites(): ResponseEntity<ApiResponse<List<Map<String, Any?>>>> {
         val userId = currentUserId()
         val recipes = recipeService.getUserFavorites(userId)
         return ResponseEntity.ok(ApiResponse.success(recipes))
@@ -208,6 +226,52 @@ class RecipeController(
             val userId = currentUserId()
             val comments = recipeService.getUserComments(userId)
             ResponseEntity.ok(ApiResponse.success(comments))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "查询失败"))
+        }
+    }
+
+    /**
+     * 获取食谱的评论列表(含用户昵称)
+     */
+    @GetMapping("/{id}/comments")
+    fun getRecipeComments(
+        @PathVariable id: Long
+    ): ResponseEntity<ApiResponse<List<Map<String, Any?>>>> {
+        return try {
+            val comments = recipeService.getRecipeCommentsWithUser(id)
+            ResponseEntity.ok(ApiResponse.success(comments))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "查询失败"))
+        }
+    }
+
+    /**
+     * 下载/克隆食谱到自己名下
+     */
+    @PostMapping("/{id}/clone")
+    fun cloneRecipe(
+        @PathVariable id: Long
+    ): ResponseEntity<ApiResponse<Recipe>> {
+        return try {
+            val userId = currentUserId()
+            val cloned = recipeService.cloneRecipe(id, userId)
+            ResponseEntity.ok(ApiResponse.success(cloned, "已下载到我的食谱"))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "下载失败"))
+        }
+    }
+
+    /**
+     * 获取食谱作者信息
+     */
+    @GetMapping("/{id}/author")
+    fun getRecipeAuthor(
+        @PathVariable id: Long
+    ): ResponseEntity<ApiResponse<Map<String, Any?>>> {
+        return try {
+            val author = recipeService.getRecipeAuthor(id)
+            ResponseEntity.ok(ApiResponse.success(author))
         } catch (e: Exception) {
             ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "查询失败"))
         }

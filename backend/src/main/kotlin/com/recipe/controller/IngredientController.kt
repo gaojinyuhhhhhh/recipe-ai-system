@@ -128,10 +128,20 @@ class IngredientController(
      * 获取过期提醒
      */
     @GetMapping("/alerts")
-    fun getExpiryAlerts(): ResponseEntity<ApiResponse<List<com.recipe.service.ExpiryAlert>>> {
+    fun getExpiryAlerts(): ResponseEntity<ApiResponse<List<ExpiryAlertResponse>>> {
         val userId = currentUserId()
         val alerts = ingredientService.getExpiryAlerts(userId)
-        return ResponseEntity.ok(ApiResponse.success(alerts))
+        val response = alerts.map { alert ->
+            ExpiryAlertResponse(
+                ingredientId = alert.ingredient.id!!,
+                ingredientName = alert.ingredient.name,
+                message = alert.message,
+                daysRemaining = alert.ingredient.getRemainingDays() ?: 0,
+                alertLevel = alert.priority.name,
+                quickSolution = alert.quickSolution
+            )
+        }
+        return ResponseEntity.ok(ApiResponse.success(response))
     }
 
     /**
@@ -143,7 +153,65 @@ class IngredientController(
         val ingredients = ingredientService.getExpiringIngredients(userId)
         return ResponseEntity.ok(ApiResponse.success(ingredients))
     }
+
+    /**
+     * 获取按新鲜度分组的食材
+     * 返回: { "expiringSoon": [...], "fresh": [...], "longTerm": [...] }
+     */
+    @GetMapping("/by-freshness")
+    fun getIngredientsByFreshness(): ResponseEntity<ApiResponse<Map<String, List<Ingredient>>>> {
+        val userId = currentUserId()
+        val ingredients = ingredientService.getUserIngredients(userId)
+        
+        // 按剩余天数分组
+        val grouped = ingredients.groupBy { ingredient ->
+            val remaining = ingredient.getRemainingDays() ?: Int.MAX_VALUE
+            when {
+                remaining <= 3 -> "expiringSoon"  // 3天内过期
+                remaining <= 7 -> "fresh"          // 4-7天
+                else -> "longTerm"                 // 7天以上
+            }
+        }
+        
+        // 确保所有分组都存在
+        val result = mapOf(
+            "expiringSoon" to (grouped["expiringSoon"] ?: emptyList()),
+            "fresh" to (grouped["fresh"] ?: emptyList()),
+            "longTerm" to (grouped["longTerm"] ?: emptyList())
+        )
+        
+        return ResponseEntity.ok(ApiResponse.success(result))
+    }
+
+    /**
+     * 获取按类别分组的食材
+     * 返回: { "肉类": [...], "蔬菜类": [...], ... }
+     */
+    @GetMapping("/by-category")
+    fun getIngredientsByCategory(): ResponseEntity<ApiResponse<Map<String, List<Ingredient>>>> {
+        val userId = currentUserId()
+        val ingredients = ingredientService.getUserIngredients(userId)
+        
+        // 按类别分组，null类别的归为"未分类"
+        val grouped = ingredients.groupBy { 
+            it.category ?: "未分类"
+        }.toSortedMap()  // 按类别名称排序
+        
+        return ResponseEntity.ok(ApiResponse.success(grouped))
+    }
 }
 
 data class RecognizeRequest(val imageBase64: String)
 data class BatchAddRequest(val ingredients: String)
+
+/**
+ * 过期提醒响应（适配Android端格式）
+ */
+data class ExpiryAlertResponse(
+    val ingredientId: Long,
+    val ingredientName: String,
+    val message: String,
+    val daysRemaining: Int,
+    val alertLevel: String,
+    val quickSolution: String? = null
+)

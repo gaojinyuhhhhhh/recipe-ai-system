@@ -18,6 +18,7 @@ class RecipeService(
     private val commentRepository: RecipeCommentRepository,
     private val favoriteRepository: RecipeFavoriteRepository,
     private val ingredientRepository: IngredientRepository,
+    private val userRepository: UserRepository,
     private val recipeGenerator: RecipeGenerator,
     private val objectMapper: ObjectMapper
 ) {
@@ -125,6 +126,7 @@ class RecipeService(
     
     /**
      * 删除食谱
+     * 注意：已发布到社区的食谱不能直接删除，需要先下架
      */
     @Transactional
     fun deleteRecipe(id: Long, userId: Long) {
@@ -133,6 +135,11 @@ class RecipeService(
         
         if (recipe.userId != userId) {
             throw Exception("无权限操作")
+        }
+        
+        // 已发布的食谱不能直接删除
+        if (recipe.isPublic) {
+            throw Exception("该食谱已发布到社区，请先从社区下架后再删除")
         }
         
         // 删除关联的评论和收藏
@@ -145,6 +152,26 @@ class RecipeService(
             .forEach { favoriteRepository.delete(it) }
         
         recipeRepository.delete(recipe)
+    }
+    
+    /**
+     * 下架食谱（从社区移除，转为私有）
+     */
+    @Transactional
+    fun unpublishRecipe(id: Long, userId: Long): Recipe {
+        val recipe = recipeRepository.findById(id)
+            .orElseThrow { Exception("食谱不存在") }
+        
+        if (recipe.userId != userId) {
+            throw Exception("无权限操作")
+        }
+        
+        if (!recipe.isPublic) {
+            throw Exception("该食谱未发布到社区")
+        }
+        
+        recipe.isPublic = false
+        return recipeRepository.save(recipe)
     }
     
     /**
@@ -189,14 +216,14 @@ class RecipeService(
     }
     
     /**
-     * 搜索食谱
+     * 搜索食谱(带作者信息)
      */
     fun searchRecipes(
         keyword: String?,
         cuisine: String?,
         difficulty: Difficulty?,
         tags: List<String>?
-    ): List<Recipe> {
+    ): List<Map<String, Any?>> {
         var recipes = if (keyword != null) {
             recipeRepository.searchRecipes(keyword)
         } else {
@@ -220,7 +247,43 @@ class RecipeService(
             }
         }
         
-        return recipes
+        // 组装带作者信息的数据
+        return recipes.map { recipe -> convertToRecipeWithAuthor(recipe) }
+    }
+    
+    /**
+     * 将Recipe转换为带作者信息的Map
+     */
+    private fun convertToRecipeWithAuthor(recipe: Recipe): Map<String, Any?> {
+        val user = userRepository.findById(recipe.userId).orElse(null)
+        return mapOf(
+            "id" to recipe.id,
+            "userId" to recipe.userId,
+            "title" to recipe.title,
+            "description" to recipe.description,
+            "coverImage" to recipe.coverImage,
+            "ingredients" to recipe.ingredients,
+            "steps" to recipe.steps,
+            "cookingTime" to recipe.cookingTime,
+            "difficulty" to recipe.difficulty.name,
+            "cuisine" to recipe.cuisine,
+            "tags" to recipe.tags,
+            "aiRating" to recipe.aiRating?.name,
+            "aiRatingDetail" to recipe.aiRatingDetail,
+            "aiSuggestion" to recipe.aiSuggestion,
+            "isAiOptimized" to recipe.isAiOptimized,
+            "originalRecipeId" to recipe.originalRecipeId,
+            "viewCount" to recipe.viewCount,
+            "favoriteCount" to recipe.favoriteCount,
+            "commentCount" to recipe.commentCount,
+            "isPublic" to recipe.isPublic,
+            "createdAt" to recipe.createdAt.toString(),
+            "updatedAt" to recipe.updatedAt.toString(),
+            "authorName" to (user?.nickname ?: user?.username ?: "未知用户"),
+            "authorAvatar" to user?.avatar,
+            "isAiGenerated" to recipe.isAiGenerated,
+            "isAiOptimized" to recipe.isAiOptimized
+        )
     }
     
     /**
@@ -301,45 +364,135 @@ class RecipeService(
     }
     
     /**
-     * 查询用户收藏的食谱
+     * 查询用户收藏的食谱(带作者信息)
      */
-    fun getUserFavorites(userId: Long): List<Recipe> {
+    fun getUserFavorites(userId: Long): List<Map<String, Any?>> {
         val favorites = favoriteRepository.findByUserId(userId)
         val recipeIds = favorites.map { it.recipeId }
-        return recipeRepository.findAllById(recipeIds)
+        val recipes = recipeRepository.findAllById(recipeIds)
+        return recipes.map { convertToRecipeWithAuthor(it) }
     }
     
     /**
-     * 查询用户的食谱
+     * 查询用户的食谱(带作者信息)
      */
-    fun getUserRecipes(userId: Long): List<Recipe> {
-        return recipeRepository.findByUserId(userId)
+    fun getUserRecipes(userId: Long): List<Map<String, Any?>> {
+        val recipes = recipeRepository.findByUserId(userId)
+        return recipes.map { convertToRecipeWithAuthor(it) }
     }
     
     /**
-     * 热门食谱
+     * 热门食谱(带作者信息)
      */
-    fun getHotRecipes(limit: Int = 10): List<Recipe> {
-        return recipeRepository.findByIsPublicTrueOrderByFavoriteCountDesc()
+    fun getHotRecipes(limit: Int = 10): List<Map<String, Any?>> {
+        val recipes = recipeRepository.findByIsPublicTrueOrderByFavoriteCountDesc()
             .take(limit)
+        return recipes.map { convertToRecipeWithAuthor(it) }
+    }
+
+    /**
+     * 获取食谱评论列表(含用户昵称)
+     */
+    fun getRecipeCommentsWithUser(recipeId: Long): List<Map<String, Any?>> {
+        val comments = commentRepository.findByRecipeIdOrderByCreatedAtDesc(recipeId)
+        return comments.map { comment ->
+            val user = userRepository.findById(comment.userId).orElse(null)
+            mapOf(
+                "id" to comment.id,
+                "recipeId" to comment.recipeId,
+                "userId" to comment.userId,
+                "username" to (user?.nickname ?: user?.username ?: "匿名用户"),
+                "content" to comment.content,
+                "rating" to comment.rating,
+                "createdAt" to comment.createdAt.toString()
+            )
+        }
+    }
+
+    /**
+     * 克隆/下载食谱到用户名下
+     */
+    @Transactional
+    fun cloneRecipe(recipeId: Long, userId: Long): Recipe {
+        val original = recipeRepository.findById(recipeId)
+            .orElseThrow { Exception("食谱不存在") }
+
+        val cloned = Recipe(
+            userId = userId,
+            title = original.title,
+            description = original.description,
+            coverImage = original.coverImage,
+            ingredients = original.ingredients,
+            steps = original.steps,
+            cookingTime = original.cookingTime,
+            difficulty = original.difficulty,
+            cuisine = original.cuisine,
+            tags = original.tags,
+            aiRating = original.aiRating,
+            aiRatingDetail = original.aiRatingDetail,
+            aiSuggestion = original.aiSuggestion,
+            isAiOptimized = original.isAiOptimized,
+            originalRecipeId = recipeId,
+            isPublic = false
+        )
+
+        return recipeRepository.save(cloned)
+    }
+
+    /**
+     * 获取食谱作者信息
+     */
+    fun getRecipeAuthor(recipeId: Long): Map<String, Any?> {
+        val recipe = recipeRepository.findById(recipeId)
+            .orElseThrow { Exception("食谱不存在") }
+        val user = userRepository.findById(recipe.userId).orElse(null)
+        return mapOf(
+            "userId" to recipe.userId,
+            "username" to (user?.username ?: "未知"),
+            "nickname" to (user?.nickname ?: user?.username ?: "未知")
+        )
     }
 
     /**
      * 保存AI生成的食谱到个人食谱
+     * 统一使用对象列表格式存储ingredients/steps，确保与AI生成格式一致
      */
     @Transactional
     fun saveGeneratedRecipe(userId: Long, request: SaveRecipeRequest): Recipe {
+        // 验证并格式化ingredients（保持对象列表格式）
+        val ingredientsJson = try {
+            val ingredientsList: List<Map<String, Any?>> = objectMapper.readValue(
+                request.ingredients, 
+                objectMapper.typeFactory.constructCollectionType(List::class.java, Map::class.java)
+            )
+            objectMapper.writeValueAsString(ingredientsList)
+        } catch (e: Exception) {
+            request.ingredients  // 如果解析失败，保持原样
+        }
+        
+        // 验证并格式化steps（保持对象列表格式）
+        val stepsJson = try {
+            val stepsList: List<Map<String, Any?>> = objectMapper.readValue(
+                request.steps,
+                objectMapper.typeFactory.constructCollectionType(List::class.java, Map::class.java)
+            )
+            objectMapper.writeValueAsString(stepsList)
+        } catch (e: Exception) {
+            request.steps  // 如果解析失败，保持原样
+        }
+
         val recipe = Recipe(
             userId = userId,
             title = request.title,
             description = request.description,
-            ingredients = request.ingredients,
-            steps = request.steps,
+            ingredients = ingredientsJson,
+            steps = stepsJson,
             cookingTime = request.cookingTime,
             difficulty = try { Difficulty.valueOf(request.difficulty) } catch (e: Exception) { Difficulty.MEDIUM },
             cuisine = request.cuisine,
             tags = request.tags,
-            isAiOptimized = true
+            isAiOptimized = true,
+            isAiGenerated = true
         )
 
         // AI质量评级

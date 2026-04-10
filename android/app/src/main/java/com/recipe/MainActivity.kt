@@ -1,6 +1,7 @@
 package com.recipe
 
 import android.os.Bundle
+import android.util.Base64
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,10 +21,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.recipe.data.local.AppDatabase
 import com.recipe.data.local.TokenManager
 import com.recipe.ui.IngredientListScreen
 import com.recipe.ui.ai.AiChatScreen
@@ -33,6 +37,8 @@ import com.recipe.ui.camera.CameraScreen
 import com.recipe.ui.camera.RecognitionResultScreen
 import com.recipe.ui.recipe.CreateRecipeScreen
 import com.recipe.ui.recipe.EditRecipeScreen
+import com.recipe.ui.recipe.EditLocalRecipeScreen
+import com.recipe.ui.recipe.LocalRecipeDetailScreen
 import com.recipe.ui.recipe.RecipeDetailScreen
 import com.recipe.ui.recipe.RecipeScreen
 import com.recipe.ui.shopping.ShoppingScreen
@@ -175,6 +181,9 @@ fun RecipeApp() {
                     },
                     onNavigateToCreate = {
                         navController.navigate("create_recipe")
+                    },
+                    onNavigateToLocalDetail = { localId ->
+                        navController.navigate("local_recipe_detail/$localId")
                     }
                 )
             }
@@ -263,6 +272,27 @@ fun RecipeApp() {
                 )
             }
 
+            // 本地食谱详情页
+            composable("local_recipe_detail/{localId}") { backStackEntry ->
+                val localId = backStackEntry.arguments?.getString("localId")?.toLongOrNull() ?: 0L
+                LocalRecipeDetailScreen(
+                    localRecipeId = localId,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToEdit = { id ->
+                        navController.navigate("edit_local_recipe/$id")
+                    }
+                )
+            }
+
+            // 编辑本地食谱页
+            composable("edit_local_recipe/{localId}") { backStackEntry ->
+                val localId = backStackEntry.arguments?.getString("localId")?.toLongOrNull() ?: 0L
+                EditLocalRecipeScreen(
+                    localRecipeId = localId,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
             // 其他子页面
             composable("camera") {
                 CameraScreen(
@@ -298,20 +328,51 @@ fun RecipeApp() {
                     ingredientNames = ingredientNames,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToRecipeDetail = { recipeName, mainIngredients ->
-                        navController.navigate("ai_recipe_detail/$recipeName")
+                        // 使用Base64编码中文参数避免闪退
+                        val encodedName = Base64.encodeToString(recipeName.toByteArray(Charsets.UTF_8), Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+                        // 将mainIngredients列表编码为JSON字符串再Base64编码
+                        val ingredientsJson = org.json.JSONArray(mainIngredients).toString()
+                        val encodedIngredients = Base64.encodeToString(ingredientsJson.toByteArray(Charsets.UTF_8), Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+                        navController.navigate("ai_recipe_detail/$encodedName/$encodedIngredients")
                     }
                 )
             }
 
             // AI生成的完整食谱详情页
-            composable("ai_recipe_detail/{recipeName}") { backStackEntry ->
-                val recipeName = backStackEntry.arguments?.getString("recipeName") ?: ""
-                val currentIngredients = ingredientsList.map { it.name }
+            composable(
+                "ai_recipe_detail/{encodedRecipeName}/{encodedIngredients}",
+                arguments = listOf(
+                    navArgument("encodedRecipeName") { type = NavType.StringType },
+                    navArgument("encodedIngredients") { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val encodedName = backStackEntry.arguments?.getString("encodedRecipeName") ?: ""
+                val encodedIngredients = backStackEntry.arguments?.getString("encodedIngredients") ?: ""
+                val recipeName = try {
+                    String(Base64.decode(encodedName, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING), Charsets.UTF_8)
+                } catch (e: Exception) {
+                    encodedName // 解码失败则使用原值
+                }
+                val mainIngredients = try {
+                    val ingredientsJson = String(Base64.decode(encodedIngredients, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING), Charsets.UTF_8)
+                    val jsonArray = org.json.JSONArray(ingredientsJson)
+                    List(jsonArray.length()) { jsonArray.getString(it) }
+                } catch (e: Exception) {
+                    // 解码失败则使用当前所有食材
+                    ingredientsList.map { it.name }
+                }
                 RecipeDetailFromRecommendScreen(
                     recipeName = recipeName,
-                    mainIngredients = currentIngredients,
+                    mainIngredients = mainIngredients,
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToMyRecipes = { navController.navigate("my_recipes") }
+                    onNavigateToMyRecipes = { navController.navigate("my_recipes") },
+                    onNavigateToLocalRecipes = {
+                        navController.navigate(BottomNavItem.Recipes.route) {
+                            popUpTo(BottomNavItem.Recipes.route) { inclusive = false }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                 )
             }
 

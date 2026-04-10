@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.recipe.viewmodel.RecipeViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,6 +24,7 @@ fun CreateRecipeScreen(
     val createSuccess by recipeViewModel.createSuccess.collectAsState()
     val toastMessage by recipeViewModel.toastMessage.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -35,6 +37,11 @@ fun CreateRecipeScreen(
     var ingredients by remember { mutableStateOf(listOf(IngredientInput())) }
     // 步骤列表
     var steps by remember { mutableStateOf(listOf(StepInput())) }
+
+    // AI辅助生成状态
+    var isAiGenerating by remember { mutableStateOf(false) }
+    var showAiConfirmDialog by remember { mutableStateOf(false) }
+    var aiGeneratedRecipe by remember { mutableStateOf<AiGeneratedRecipe?>(null) }
 
     val difficulties = listOf("EASY" to "简单", "MEDIUM" to "中等", "HARD" to "困难")
 
@@ -56,13 +63,13 @@ fun CreateRecipeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("创建食谱") },
+                title = { Text("创建本地食谱") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
                     }
                 },
-                actions = {
+                    actions = {
                     TextButton(
                         onClick = {
                             val ingredientMaps = ingredients
@@ -72,7 +79,7 @@ fun CreateRecipeScreen(
                                 .filter { it.content.isNotBlank() }
                                 .mapIndexed { idx, s -> mapOf<String, Any?>("step" to idx + 1, "content" to s.content, "duration" to s.duration.toIntOrNull()) }
                             val tags = tagsText.split(",", "，", " ").filter { it.isNotBlank() }.map { it.trim() }
-                            recipeViewModel.createRecipe(
+                            recipeViewModel.createLocalRecipe(
                                 title = title,
                                 description = description.takeIf { it.isNotBlank() },
                                 ingredientsList = ingredientMaps,
@@ -88,7 +95,7 @@ fun CreateRecipeScreen(
                         if (isLoading) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                         } else {
-                            Text("发布", style = MaterialTheme.typography.titleMedium)
+                            Text("保存", style = MaterialTheme.typography.titleMedium)
                         }
                     }
                 }
@@ -107,13 +114,58 @@ fun CreateRecipeScreen(
                 Text("基本信息", style = MaterialTheme.typography.titleMedium)
             }
             item {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("食谱名称 *") },
-                    singleLine = true
-                )
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("食谱名称 *") },
+                        singleLine = true
+                    )
+                    // AI补充按钮
+                    Button(
+                        onClick = {
+                            if (title.isBlank()) {
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("请先输入食谱名称")
+                                }
+                                return@Button
+                            }
+                            isAiGenerating = true
+                            coroutineScope.launch {
+                                try {
+                                    val result = recipeViewModel.assistCreateRecipe(title)
+                                    result?.let { recipe ->
+                                        aiGeneratedRecipe = recipe
+                                        showAiConfirmDialog = true
+                                    }
+                                } catch (e: Exception) {
+                                    snackbarHostState.showSnackbar("AI生成失败: ${e.message}")
+                                } finally {
+                                    isAiGenerating = false
+                                }
+                            }
+                        },
+                        enabled = !isAiGenerating && title.isNotBlank(),
+                        modifier = Modifier.height(56.dp)
+                    ) {
+                        if (isAiGenerating) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("AI补充")
+                        }
+                    }
+                }
             }
             item {
                 OutlinedTextField(
@@ -322,6 +374,70 @@ fun CreateRecipeScreen(
             item { Spacer(modifier = Modifier.height(32.dp)) }
         }
     }
+
+    // AI生成结果确认对话框
+    if (showAiConfirmDialog && aiGeneratedRecipe != null) {
+        val recipe = aiGeneratedRecipe!!
+        AlertDialog(
+            onDismissRequest = { showAiConfirmDialog = false },
+            icon = { Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("AI已生成食谱") },
+            text = {
+                Column {
+                    Text("AI已为「$title」生成完整食谱信息，是否应用到当前表单？")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "包含：${recipe.ingredients.size}种食材、${recipe.steps.size}个步骤",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "预计烹饪时间：${recipe.cookingTime}分钟 | 难度：${recipe.difficultyDisplay}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        // 应用AI生成的数据到表单
+                        description = recipe.description
+                        cookingTimeText = recipe.cookingTime.toString()
+                        cuisine = recipe.cuisine
+                        selectedDifficulty = recipe.difficulty
+                        tagsText = recipe.tags.joinToString(", ")
+                        ingredients = recipe.ingredients.map { 
+                            IngredientInput(
+                                name = it.name,
+                                quantity = it.quantity?.toString() ?: "",
+                                unit = it.unit ?: ""
+                            )
+                        }.ifEmpty { listOf(IngredientInput()) }
+                        steps = recipe.steps.map {
+                            StepInput(
+                                content = it.content,
+                                duration = it.duration?.toString() ?: ""
+                            )
+                        }.ifEmpty { listOf(StepInput()) }
+                        showAiConfirmDialog = false
+                        aiGeneratedRecipe = null
+                    }
+                ) {
+                    Text("应用并修改")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    showAiConfirmDialog = false
+                    aiGeneratedRecipe = null
+                }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
 }
 
 data class IngredientInput(
@@ -333,4 +449,34 @@ data class IngredientInput(
 data class StepInput(
     val content: String = "",
     val duration: String = ""
+)
+
+/**
+ * AI生成的食谱数据
+ */
+data class AiGeneratedRecipe(
+    val title: String,
+    val description: String,
+    val ingredients: List<AiIngredient>,
+    val steps: List<AiStep>,
+    val cookingTime: Int,
+    val difficulty: String,
+    val difficultyDisplay: String,
+    val cuisine: String,
+    val tags: List<String>
+)
+
+data class AiIngredient(
+    val name: String,
+    val quantity: Double?,
+    val unit: String?,
+    val notes: String?
+)
+
+data class AiStep(
+    val step: Int,
+    val content: String,
+    val duration: Int?,
+    val temperature: String?,
+    val tips: String?
 )

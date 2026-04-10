@@ -27,7 +27,7 @@ class IngredientRecognizer(
             请识别图片中的所有食材，并返回JSON格式数据。
             要求：
             1. 准确识别食材名称(中文)
-            2. 判断食材类别(蔬菜类/肉类/水果类/主食类/调味类/其他)
+            2. 判断食材类别(蔬菜/水果/肉类/海鲜/蛋奶/调味品/主食/饮品/其他)
             3. 判断新鲜度(FRESH新鲜/WILTING微蔫/SPOILING即将变质)
             4. 预估重量(如: "200g", "3个", "1斤")
             5. 推荐保存方式(ROOM_TEMP常温/REFRIGERATE冷藏/FREEZE冷冻/DRY_COOL干燥阴凉处)
@@ -38,7 +38,7 @@ class IngredientRecognizer(
               "items": [
                 {
                   "name": "西红柿",
-                  "category": "蔬菜类",
+                  "category": "蔬菜",
                   "freshness": "FRESH",
                   "estimatedWeight": "500g",
                   "storageMethod": "REFRIGERATE",

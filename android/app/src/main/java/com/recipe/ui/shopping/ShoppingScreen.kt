@@ -41,6 +41,8 @@ fun ShoppingScreen(
     val isLoading by shoppingViewModel.isLoading.collectAsState()
     val toastMessage by shoppingViewModel.toastMessage.collectAsState()
     val selectedIds by shoppingViewModel.selectedIds.collectAsState()
+    val currentProcessingItem by shoppingViewModel.currentProcessingItem.collectAsState()
+    val inferredInfo by shoppingViewModel.inferredInfo.collectAsState()
     val context = LocalContext.current
 
     var showAddDialog by remember { mutableStateOf(false) }
@@ -213,9 +215,9 @@ fun ShoppingScreen(
                         }
                     }
                 } else {
-                    // 按类别分组显示
+                    // 按类别分组显示（使用标准9大类别）
                     val grouped = currentItems.groupBy { it.getCategoryDisplay() }
-                    val categoryOrder = listOf("蔬菜类", "肉蛋类", "主食类", "调味类", "其他")
+                    val categoryOrder = listOf("肉类", "海鲜", "蔬菜类", "水果", "蛋奶", "豆制品", "调味类", "粮油", "干货", "未分类")
                     val sortedGroups = grouped.entries.sortedBy {
                         val idx = categoryOrder.indexOf(it.key)
                         if (idx >= 0) idx else 99
@@ -236,7 +238,7 @@ fun ShoppingScreen(
                                     isSelected = selectedIds.contains(item.id),
                                     isCompletedTab = showCompletedTab,
                                     onToggleSelect = { item.id?.let { shoppingViewModel.toggleSelection(it) } },
-                                    onComplete = { item.id?.let { shoppingViewModel.completeItem(it) } },
+                                    onComplete = { shoppingViewModel.startProcessingItem(item) },
                                     onDelete = { item.id?.let { shoppingViewModel.deleteItem(it) } }
                                 )
                             }
@@ -266,22 +268,45 @@ fun ShoppingScreen(
             }
         )
     }
+
+    // AI推断确认对话框
+    if (currentProcessingItem != null && inferredInfo != null) {
+        IngredientConfirmDialog(
+            item = currentProcessingItem!!,
+            inferredInfo = inferredInfo!!,
+            onDismiss = { shoppingViewModel.cancelProcessing() },
+            onConfirm = { info ->
+                shoppingViewModel.confirmAndAddToIngredients(info)
+            }
+        )
+    }
 }
 
 @Composable
 fun CategoryHeader(category: String, count: Int) {
+    // 标准9大类别颜色和图标
     val color = when (category) {
-        "蔬菜类" -> Color(0xFF4CAF50)
-        "肉蛋类" -> Color(0xFFE91E63)
-        "主食类" -> Color(0xFFFF9800)
-        "调味类" -> Color(0xFF9C27B0)
+        "肉类" -> Color(0xFFE53935)
+        "海鲜" -> Color(0xFF1E88E5)
+        "蔬菜类" -> Color(0xFF43A047)
+        "水果" -> Color(0xFFFB8C00)
+        "蛋奶" -> Color(0xFFFDD835)
+        "豆制品" -> Color(0xFF8E24AA)
+        "调味类" -> Color(0xFF6D4C41)
+        "粮油" -> Color(0xFFFFA726)
+        "干货" -> Color(0xFF78909C)
         else -> Color(0xFF607D8B)
     }
     val icon = when (category) {
-        "蔬菜类" -> Icons.Default.Eco
-        "肉蛋类" -> Icons.Default.SetMeal
-        "主食类" -> Icons.Default.RiceBowl
-        "调味类" -> Icons.Default.Opacity
+        "肉类" -> Icons.Default.Restaurant
+        "海鲜" -> Icons.Default.Water
+        "蔬菜类" -> Icons.Default.Spa
+        "水果" -> Icons.Default.ShoppingBasket
+        "蛋奶" -> Icons.Default.Egg
+        "豆制品" -> Icons.Default.Grain
+        "调味类" -> Icons.Default.LocalDining
+        "粮油" -> Icons.Default.Grass
+        "干货" -> Icons.Default.Inventory
         else -> Icons.Default.Category
     }
 
@@ -442,7 +467,7 @@ fun ShoppingItemCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun AddShoppingItemDialog(
     onDismiss: () -> Unit,
@@ -453,7 +478,8 @@ fun AddShoppingItemDialog(
     var unit by remember { mutableStateOf("g") }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
 
-    val categories = listOf("蔬菜类", "肉蛋类", "主食类", "调味类", "其他")
+    // 标准9大类别，与食材库分类展示保持一致
+    val categories = listOf("肉类", "海鲜", "蔬菜类", "水果", "蛋奶", "豆制品", "调味类", "粮油", "干货")
     val units = listOf("g", "kg", "ml", "L", "个", "根", "把", "包", "瓶", "盒")
 
     AlertDialog(
@@ -516,20 +542,38 @@ fun AddShoppingItemDialog(
                     }
                 }
 
-                // 类别选择
+                // 类别选择 - 分两行显示
                 Text("类别", style = MaterialTheme.typography.bodyMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    categories.forEach { cat ->
-                        FilterChip(
-                            selected = selectedCategory == cat,
-                            onClick = {
-                                selectedCategory = if (selectedCategory == cat) null else cat
-                            },
-                            label = { Text(cat, style = MaterialTheme.typography.bodySmall) }
-                        )
+                val firstRow = categories.take(5)
+                val secondRow = categories.drop(5)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        firstRow.forEach { cat ->
+                            FilterChip(
+                                selected = selectedCategory == cat,
+                                onClick = {
+                                    selectedCategory = if (selectedCategory == cat) null else cat
+                                },
+                                label = { Text(cat, style = MaterialTheme.typography.bodySmall) }
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        secondRow.forEach { cat ->
+                            FilterChip(
+                                selected = selectedCategory == cat,
+                                onClick = {
+                                    selectedCategory = if (selectedCategory == cat) null else cat
+                                },
+                                label = { Text(cat, style = MaterialTheme.typography.bodySmall) }
+                            )
+                        }
                     }
                 }
 

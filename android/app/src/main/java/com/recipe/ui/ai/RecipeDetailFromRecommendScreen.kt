@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -25,12 +26,18 @@ fun RecipeDetailFromRecommendScreen(
     mainIngredients: List<String>,
     onNavigateBack: () -> Unit,
     onNavigateToMyRecipes: () -> Unit = {},
-    viewModel: RecipeDetailViewModel = viewModel()
+    onNavigateToLocalRecipes: () -> Unit = {},
 ) {
+    val context = LocalContext.current.applicationContext as android.app.Application
+    val viewModel: RecipeDetailViewModel = viewModel(
+        factory = RecipeDetailViewModel.createFactory(context)
+    )
     val recipe by viewModel.recipe.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val isSaved by viewModel.isSaved.collectAsState()
+    val isImported by viewModel.isImported.collectAsState()
+    val toastMessage by viewModel.toastMessage.collectAsState()
 
     // 进入页面时自动生成完整食谱
     LaunchedEffect(recipeName) {
@@ -39,7 +46,17 @@ fun RecipeDetailFromRecommendScreen(
         }
     }
 
+    // 监听toast消息
+    LaunchedEffect(toastMessage) {
+        toastMessage?.let {
+            viewModel.clearToast()
+        }
+    }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(recipeName) },
@@ -86,8 +103,11 @@ fun RecipeDetailFromRecommendScreen(
                     RecipeDetailContent(
                         recipe = recipe!!,
                         isSaved = isSaved,
+                        isImported = isImported,
                         onSave = { viewModel.saveRecipe() },
-                        onNavigateToMyRecipes = onNavigateToMyRecipes
+                        onImport = { viewModel.importToLocalRecipes() },
+                        onNavigateToMyRecipes = onNavigateToMyRecipes,
+                        onNavigateToLocalRecipes = onNavigateToLocalRecipes
                     )
                 }
             }
@@ -146,8 +166,11 @@ private fun ErrorContent(error: String, onRetry: () -> Unit) {
 private fun RecipeDetailContent(
     recipe: GeneratedRecipeDetail,
     isSaved: Boolean,
+    isImported: Boolean,
     onSave: () -> Unit,
-    onNavigateToMyRecipes: () -> Unit
+    onImport: () -> Unit,
+    onNavigateToMyRecipes: () -> Unit,
+    onNavigateToLocalRecipes: () -> Unit
 ) {
     var showSaveSuccess by remember { mutableStateOf(false) }
 
@@ -202,27 +225,54 @@ private fun RecipeDetailContent(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // 保存按钮
-        if (!isSaved) {
-            Button(
-                onClick = {
-                    onSave()
-                    showSaveSuccess = true
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.BookmarkBorder, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("保存到我的食谱")
+        // 保存和导入按钮区域
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // 保存到云端按钮
+            if (!isSaved) {
+                Button(
+                    onClick = {
+                        onSave()
+                        showSaveSuccess = true
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.CloudUpload, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("发布到社区")
+                }
+            } else {
+                OutlinedButton(
+                    onClick = onNavigateToMyRecipes,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("已发布 - 查看")
+                }
             }
-        } else {
-            OutlinedButton(
-                onClick = onNavigateToMyRecipes,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Check, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("已保存 - 查看我的食谱")
+
+            // 导入到本地按钮
+            if (!isImported) {
+                OutlinedButton(
+                    onClick = onImport,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("导入本地")
+                }
+            } else {
+                OutlinedButton(
+                    onClick = onNavigateToLocalRecipes,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.PhoneAndroid, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("已导入 - 查看")
+                }
             }
         }
 

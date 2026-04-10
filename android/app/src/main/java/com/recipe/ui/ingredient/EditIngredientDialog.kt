@@ -41,7 +41,8 @@ fun EditIngredientDialog(
     var selectedMonth by remember { mutableIntStateOf(existingExpiry?.monthValue ?: today.monthValue) }
     var selectedDay by remember { mutableIntStateOf(existingExpiry?.dayOfMonth ?: today.dayOfMonth) }
 
-    val categoryOptions = listOf("蔬菜", "水果", "肉类", "海鲜", "蛋奶", "调味品", "主食", "饮品", "其他")
+    // 标准9大类别，与食材库分类展示保持一致
+    val categoryOptions = listOf("肉类", "海鲜", "蔬菜类", "水果", "蛋奶", "豆制品", "调味类", "粮油", "干货")
     val storageOptions = listOf("常温", "冷藏", "冷冻")
 
     // 计算过期日期
