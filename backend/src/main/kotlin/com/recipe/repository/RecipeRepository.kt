@@ -59,6 +59,9 @@ interface RecipeRepository : JpaRepository<Recipe, Long> {
     // 查询用户的食谱
     fun findByUserId(userId: Long): List<Recipe>
     
+    // 根据用户ID和标题查询（用于重复检测）
+    fun findByUserIdAndTitle(userId: Long, title: String): Recipe?
+    
     // 查询公开食谱
     fun findByIsPublicTrue(): List<Recipe>
     

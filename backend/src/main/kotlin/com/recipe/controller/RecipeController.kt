@@ -218,10 +218,10 @@ class RecipeController(
     }
 
     /**
-     * 查询用户历史评论
+     * 查询用户历史评论（包含食谱标题）
      */
     @GetMapping("/my/comments")
-    fun getMyComments(): ResponseEntity<ApiResponse<List<RecipeComment>>> {
+    fun getMyComments(): ResponseEntity<ApiResponse<List<Map<String, Any?>>>> {
         return try {
             val userId = currentUserId()
             val comments = recipeService.getUserComments(userId)

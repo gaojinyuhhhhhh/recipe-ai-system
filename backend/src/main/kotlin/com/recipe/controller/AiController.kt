@@ -7,6 +7,7 @@ import com.recipe.ai.TongYiAiClient
 import com.recipe.dto.ApiResponse
 import com.recipe.service.RecipeService
 import com.recipe.service.ShoppingService
+import com.recipe.service.UserService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -21,7 +22,8 @@ class AiController(
     private val aiClient: TongYiAiClient,
     private val recipeService: RecipeService,
     private val shoppingService: ShoppingService,
-    private val ingredientRecognizer: IngredientRecognizer
+    private val ingredientRecognizer: IngredientRecognizer,
+    private val userService: UserService
 ) : BaseController() {
     
     /**
@@ -99,7 +101,7 @@ class AiController(
     }
     
     /**
-     * AI对话式烹饪助手
+     * AI对话式烹饪助手 - 结合用户偏好
      * 
      * 示例：
      * - "我有西红柿和鸡蛋，能做什么菜？"
@@ -111,22 +113,64 @@ class AiController(
         @RequestBody request: ChatRequest
     ): ResponseEntity<ApiResponse<ChatResponse>> {
         return try {
-            currentUserId()
+            val userId = currentUserId()
+            
+            // 获取用户偏好
+            val userPreferences = userService.getUserPreferences(userId)
 
-            val systemPrompt = """
-                你是一位资深营养师和星级厨师，名叫"食智助手"。
-                你擅长：
-                1. 根据用户提供的食材推荐菜品
-                2. 解答烹饪技巧、调味比例、火候控制等问题
-                3. 提供营养搭配建议
-                4. 食材保存和处理建议
+            val systemPrompt = buildString {
+                appendLine("""你是一位资深营养师和星级厨师，名叫"食智助手"。""")
+                appendLine()
+                appendLine("你擅长：")
+                appendLine("1. 根据用户提供的食材推荐菜品")
+                appendLine("2. 解答烹饪技巧、调味比例、火候控制等问题")
+                appendLine("3. 提供营养搭配建议")
+                appendLine("4. 食材保存和处理建议")
+                appendLine()
                 
-                回答要求：
-                - 简洁实用，通俗易懂
-                - 用量精确到克/毫升
-                - 步骤清晰，时间明确
-                - 必要时提供替代方案
-            """.trimIndent()
+                // 注入用户偏好上下文
+                if (userPreferences != null) {
+                    appendLine("【用户偏好档案】")
+                    userPreferences.cuisines?.takeIf { it.isNotEmpty() }?.let {
+                        appendLine("• 喜欢的菜系：${it.joinToString("、")}")
+                    }
+                    userPreferences.tastes?.takeIf { it.isNotEmpty() }?.let {
+                        appendLine("• 口味偏好：${it.joinToString("、")}")
+                    }
+                    userPreferences.nutritionGoals?.takeIf { it.isNotEmpty() }?.let {
+                        appendLine("• 营养目标：${it.joinToString("、")}")
+                    }
+                    userPreferences.diet?.takeIf { it.isNotEmpty() }?.let {
+                        appendLine("• 饮食限制：${it.joinToString("、")}")
+                    }
+                    userPreferences.difficulty?.let {
+                        appendLine("• 难度偏好：${when(it) {
+                            "EASY" -> "简单"
+                            "MEDIUM" -> "中等"
+                            "HARD" -> "困难"
+                            else -> it
+                        }}")
+                    }
+                    userPreferences.maxCookingTime?.let {
+                        appendLine("• 时间限制：${it}分钟内")
+                    }
+                    userPreferences.dislikedIngredients?.takeIf { it.isNotEmpty() }?.let {
+                        appendLine("• 忌口食材：${it.joinToString("、")}")
+                    }
+                    userPreferences.cookingEquipment?.takeIf { it.isNotEmpty() }?.let {
+                        appendLine("• 烹饪设备：${it.joinToString("、")}")
+                    }
+                    appendLine()
+                    appendLine("回答时请优先考虑用户的偏好设置，推荐符合用户口味和营养目标的食谱。")
+                    appendLine()
+                }
+                
+                appendLine("回答要求：")
+                appendLine("- 简洁实用，通俗易懂")
+                appendLine("- 用量精确到克/毫升")
+                appendLine("- 步骤清晰，时间明确")
+                appendLine("- 必要时提供替代方案")
+            }.trimIndent()
 
             // 拼接上下文历史
             val contextStr = if (!request.context.isNullOrEmpty()) {

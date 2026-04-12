@@ -186,15 +186,27 @@ class IngredientController(
     /**
      * 获取按类别分组的食材
      * 返回: { "肉类": [...], "蔬菜类": [...], ... }
+     * 兼容处理：将旧类别名称映射到标准9大类别
      */
     @GetMapping("/by-category")
     fun getIngredientsByCategory(): ResponseEntity<ApiResponse<Map<String, List<Ingredient>>>> {
         val userId = currentUserId()
         val ingredients = ingredientService.getUserIngredients(userId)
         
-        // 按类别分组，null类别的归为"未分类"
+        // 类别名称映射表（兼容旧数据）
+        val categoryMapping = mapOf(
+            "蔬菜" to "蔬菜类",
+            "调味品" to "调味类",
+            "主食" to "粮油",
+            "饮品" to "干货",
+            "其他" to "未分类"
+        )
+        
+        // 按类别分组，null类别的归为"未分类"，同时进行类别名称标准化
         val grouped = ingredients.groupBy { 
-            it.category ?: "未分类"
+            val rawCategory = it.category ?: "未分类"
+            // 映射到标准类别名称，如果没有映射则保持原样
+            categoryMapping[rawCategory] ?: rawCategory
         }.toSortedMap()  // 按类别名称排序
         
         return ResponseEntity.ok(ApiResponse.success(grouped))

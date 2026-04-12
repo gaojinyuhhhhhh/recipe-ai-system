@@ -135,62 +135,101 @@ class RecipeGenerator(
     }
     
     /**
-     * 构建生成提示词
+     * 构建生成提示词 - 增强版，支持完整偏好
      */
     private fun buildPrompt(request: RecipeGenerationRequest): String {
-        return """
-            请生成一个食谱，要求如下：
+        return buildString {
+            appendLine("请生成一个食谱，要求如下：")
+            appendLine()
             
-            ${if (request.availableIngredients.isNotEmpty()) 
-                "可用食材: ${request.availableIngredients.joinToString(", ")}" 
-                else ""}
-            ${if (request.cuisineType != null) "菜系: ${request.cuisineType}" else ""}
-            ${if (request.taste != null) "口味: ${request.taste}" else ""}
-            ${if (request.cookingTime != null) "烹饪时长: ${request.cookingTime}分钟内" else ""}
-            ${if (request.difficulty != null) "难度: ${request.difficulty}" else ""}
-            ${if (request.dietaryRestrictions.isNotEmpty()) 
-                "饮食禁忌: ${request.dietaryRestrictions.joinToString(", ")}" 
-                else ""}
-            ${if (request.nutritionGoals.isNotEmpty()) 
-                "营养需求: ${request.nutritionGoals.joinToString(", ")}" 
-                else ""}
-            ${if (request.cookingEquipment != null) 
-                "烹饪设备: ${request.cookingEquipment}" 
-                else ""}
-            
-            **重要要求**:
-            1. 食材用量必须具体精确，禁止使用"适量"、"少许"、"适量即可"等模糊词汇
-            2. 食材用量规范：
-               - 蔬菜类：使用克(g)，如 200g、500g
-               - 肉类：使用克(g)，如 300g、500g
-               - 液体：使用毫升(ml)，如 50ml、100ml
-               - 蛋类：使用个，如 2个、3个
-               - 调料：使用克(g)或毫升(ml)，如 5g、10ml
-               - 主食：使用克(g)，如 200g米饭
-            3. 步骤描述要详细，包含火候、时间等关键信息
-            
-            返回JSON格式(纯JSON无其他文字):
-            {
-              "title": "菜名",
-              "description": "简短描述",
-              "ingredients": [
-                {"name": "食材名", "quantity": 数字, "unit": "单位", "notes": "备注(可选)"}
-              ],
-              "steps": [
-                {"step": 序号, "content": "步骤内容", "duration": 时长秒数, "temperature": "温度(可选)", "tips": "提示(可选)"}
-              ],
-              "cookingTime": 总时长分钟,
-              "difficulty": "EASY/MEDIUM/HARD",
-              "cuisine": "菜系",
-              "tags": ["标签1", "标签2"],
-              "nutrition": {
-                "calories": "卡路里",
-                "protein": "蛋白质g",
-                "carbs": "碳水g",
-                "fat": "脂肪g"
-              }
+            // 基础信息
+            if (request.availableIngredients.isNotEmpty()) {
+                appendLine("可用食材: ${request.availableIngredients.joinToString(", ")}")
             }
-        """.trimIndent()
+            if (request.cuisineType != null) {
+                appendLine("菜系: ${request.cuisineType}")
+            }
+            if (request.taste != null) {
+                appendLine("口味: ${request.taste}")
+            }
+            if (request.cookingTime != null) {
+                appendLine("烹饪时长: ${request.cookingTime}分钟内")
+            }
+            if (request.difficulty != null) {
+                appendLine("难度: ${request.difficulty}")
+            }
+            if (request.dietaryRestrictions.isNotEmpty()) {
+                appendLine("饮食禁忌: ${request.dietaryRestrictions.joinToString(", ")}")
+            }
+            if (request.nutritionGoals.isNotEmpty()) {
+                appendLine("营养需求: ${request.nutritionGoals.joinToString(", ")}")
+            }
+            if (request.cookingEquipment != null) {
+                appendLine("烹饪设备: ${request.cookingEquipment}")
+            }
+            if (request.dislikedIngredients.isNotEmpty()) {
+                appendLine("忌口食材(禁止使用): ${request.dislikedIngredients.joinToString(", ")}")
+            }
+            if (request.cookingScene != null) {
+                appendLine("烹饪场景: ${request.cookingScene}")
+            }
+            
+            appendLine()
+            appendLine("**重要要求**:")
+            appendLine("1. 食材用量必须具体精确，禁止使用\"适量\"、\"少许\"、\"适量即可\"等模糊词汇")
+            appendLine("2. 食材用量规范：")
+            appendLine("   - 蔬菜类：使用克(g)，如 200g、500g")
+            appendLine("   - 肉类：使用克(g)，如 300g、500g")
+            appendLine("   - 液体：使用毫升(ml)，如 50ml、100ml")
+            appendLine("   - 蛋类：使用个，如 2个、3个")
+            appendLine("   - 调料：使用克(g)或毫升(ml)，如 5g、10ml")
+            appendLine("   - 主食：使用克(g)，如 200g米饭")
+            appendLine("3. 步骤描述要详细，包含火候、时间等关键信息")
+            
+            // 根据偏好添加特殊要求
+            if (request.nutritionGoals.isNotEmpty()) {
+                appendLine()
+                appendLine("**营养要求**:")
+                if (request.nutritionGoals.contains("减脂") || request.nutritionGoals.contains("低卡")) {
+                    appendLine("- 控制总热量，少油少盐")
+                }
+                if (request.nutritionGoals.contains("高蛋白") || request.nutritionGoals.contains("增肌")) {
+                    appendLine("- 增加优质蛋白质食材")
+                }
+                if (request.nutritionGoals.contains("控糖") || request.nutritionGoals.contains("低糖")) {
+                    appendLine("- 控制碳水化合物，少糖")
+                }
+            }
+            
+            if (request.cookingEquipment != null) {
+                appendLine()
+                appendLine("**设备适配**:")
+                appendLine("- 请确保所有步骤都可以使用${request.cookingEquipment}完成")
+            }
+            
+            appendLine()
+            appendLine("返回JSON格式(纯JSON无其他文字):")
+            appendLine("{")
+            appendLine("  \"title\": \"菜名\",")
+            appendLine("  \"description\": \"简短描述\",")
+            appendLine("  \"ingredients\": [")
+            appendLine("    {\"name\": \"食材名\", \"quantity\": 数字, \"unit\": \"单位\", \"notes\": \"备注(可选)\"}")
+            appendLine("  ],")
+            appendLine("  \"steps\": [")
+            appendLine("    {\"step\": 序号, \"content\": \"步骤内容\", \"duration\": 时长秒数, \"temperature\": \"温度(可选)\", \"tips\": \"提示(可选)\"}")
+            appendLine("  ],")
+            appendLine("  \"cookingTime\": 总时长分钟,")
+            appendLine("  \"difficulty\": \"EASY/MEDIUM/HARD\",")
+            appendLine("  \"cuisine\": \"菜系\",")
+            appendLine("  \"tags\": [\"标签1\", \"标签2\"],")
+            appendLine("  \"nutrition\": {")
+            appendLine("    \"calories\": \"卡路里\",")
+            appendLine("    \"protein\": \"蛋白质g\",")
+            appendLine("    \"carbs\": \"碳水g\",")
+            appendLine("    \"fat\": \"脂肪g\"")
+            appendLine("  }")
+            appendLine("}")
+        }.trimIndent()
     }
     
     private fun extractJson(content: String): String {
@@ -205,7 +244,7 @@ class RecipeGenerator(
 }
 
 /**
- * 食谱生成请求
+ * 食谱生成请求 - 扩展版
  */
 data class RecipeGenerationRequest(
     val availableIngredients: List<String> = emptyList(),  // 可用食材
@@ -216,6 +255,8 @@ data class RecipeGenerationRequest(
     val dietaryRestrictions: List<String> = emptyList(),  // 饮食禁忌
     val nutritionGoals: List<String> = emptyList(),  // 营养需求(减脂/控糖等)
     val cookingEquipment: String? = null,  // 烹饪设备
+    val dislikedIngredients: List<String> = emptyList(),  // 忌口食材
+    val cookingScene: String? = null,  // 烹饪场景
     val servings: Int = 2  // 份数
 )
 

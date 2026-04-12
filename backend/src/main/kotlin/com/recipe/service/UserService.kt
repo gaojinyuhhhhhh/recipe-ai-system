@@ -1,5 +1,7 @@
 package com.recipe.service
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import com.recipe.entity.User
 import com.recipe.repository.UserRepository
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
@@ -13,7 +15,8 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class UserService(
     private val userRepository: UserRepository,
-    private val passwordEncoder: BCryptPasswordEncoder
+    private val passwordEncoder: BCryptPasswordEncoder,
+    private val objectMapper: ObjectMapper
 ) {
     
     /**
@@ -140,6 +143,20 @@ class UserService(
     fun getUserInfo(userId: Long): User {
         return userRepository.findById(userId)
             .orElseThrow { Exception("用户不存在") }
+    }
+    
+    /**
+     * 获取用户偏好设置
+     */
+    fun getUserPreferences(userId: Long): UserPreferences? {
+        val user = userRepository.findById(userId).orElse(null) ?: return null
+        return try {
+            if (user.preferences != null) {
+                objectMapper.readValue<UserPreferences>(user.preferences!!)
+            } else null
+        } catch (e: Exception) {
+            null
+        }
     }
 }
 

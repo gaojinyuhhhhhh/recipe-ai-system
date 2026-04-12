@@ -20,7 +20,8 @@ class RecipeService(
     private val ingredientRepository: IngredientRepository,
     private val userRepository: UserRepository,
     private val recipeGenerator: RecipeGenerator,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val userBehaviorService: UserBehaviorService
 ) {
     
     /**
@@ -300,6 +301,9 @@ class RecipeService(
             recipeRepository.save(it)
         }
         
+        // 记录评论行为
+        userBehaviorService.recordBehavior(comment.userId, comment.recipeId, UserBehaviorService.BehaviorType.COMMENT)
+        
         return saved
     }
 
@@ -326,10 +330,22 @@ class RecipeService(
     }
 
     /**
-     * 获取用户的所有历史评论
+     * 获取用户的所有历史评论（包含食谱标题）
      */
-    fun getUserComments(userId: Long): List<RecipeComment> {
-        return commentRepository.findByUserIdOrderByCreatedAtDesc(userId)
+    fun getUserComments(userId: Long): List<Map<String, Any?>> {
+        val comments = commentRepository.findByUserIdOrderByCreatedAtDesc(userId)
+        return comments.map { comment ->
+            val recipe = recipeRepository.findById(comment.recipeId).orElse(null)
+            mapOf(
+                "id" to comment.id,
+                "recipeId" to comment.recipeId,
+                "recipeTitle" to (recipe?.title ?: "未知食谱"),
+                "userId" to comment.userId,
+                "content" to comment.content,
+                "rating" to comment.rating,
+                "createdAt" to comment.createdAt.toString()
+            )
+        }
     }
     
     /**
@@ -348,6 +364,10 @@ class RecipeService(
                 it.favoriteCount = maxOf(0, it.favoriteCount - 1)
                 recipeRepository.save(it)
             }
+            
+            // 记录取消收藏行为
+            userBehaviorService.recordBehavior(userId, recipeId, UserBehaviorService.BehaviorType.UNFAVORITE)
+            
             false
         } else {
             // 添加收藏
@@ -359,6 +379,10 @@ class RecipeService(
                 it.favoriteCount++
                 recipeRepository.save(it)
             }
+            
+            // 记录收藏行为
+            userBehaviorService.recordBehavior(userId, recipeId, UserBehaviorService.BehaviorType.FAVORITE)
+            
             true
         }
     }
@@ -435,6 +459,9 @@ class RecipeService(
             originalRecipeId = recipeId,
             isPublic = false
         )
+        
+        // 记录下载行为
+        userBehaviorService.recordBehavior(userId, recipeId, UserBehaviorService.BehaviorType.DOWNLOAD)
 
         return recipeRepository.save(cloned)
     }
@@ -456,9 +483,23 @@ class RecipeService(
     /**
      * 保存AI生成的食谱到个人食谱
      * 统一使用对象列表格式存储ingredients/steps，确保与AI生成格式一致
+     * 添加重复检测：同一用户24小时内不能发布相同标题的食谱
      */
     @Transactional
     fun saveGeneratedRecipe(userId: Long, request: SaveRecipeRequest): Recipe {
+        // 检查是否已存在相同标题的食谱（同一用户，24小时内）
+        val existingRecipe = recipeRepository.findByUserIdAndTitle(userId, request.title)
+        if (existingRecipe != null) {
+            // 检查是否在24小时内创建
+            val hoursSinceCreation = java.time.Duration.between(
+                existingRecipe.createdAt,
+                java.time.LocalDateTime.now()
+            ).toHours()
+            if (hoursSinceCreation < 24) {
+                throw Exception("您已在${hoursSinceCreation}小时前发布过相同标题的食谱，24小时内不能重复发布")
+            }
+        }
+        
         // 验证并格式化ingredients（保持对象列表格式）
         val ingredientsJson = try {
             val ingredientsList: List<Map<String, Any?>> = objectMapper.readValue(

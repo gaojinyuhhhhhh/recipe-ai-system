@@ -20,7 +20,8 @@ class RecommendService(
     private val ingredientRepository: IngredientRepository,
     private val userRepository: UserRepository,
     private val favoriteRepository: RecipeFavoriteRepository,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val userBehaviorService: UserBehaviorService
 ) {
     
     /**
@@ -86,7 +87,7 @@ class RecommendService(
     }
     
     /**
-     * 个性化推荐(基于用户偏好)
+     * 个性化推荐(基于用户偏好) - 增强版
      */
     fun getPersonalizedRecipes(user: User, allRecipes: List<Recipe>): List<Recipe> {
         // 解析用户偏好
@@ -103,35 +104,63 @@ class RecommendService(
         val favoriteRecipeIds = favorites.map { it.recipeId }.toSet()
         val favoriteRecipes = recipeRepository.findAllById(favoriteRecipeIds)
         
-        // 分析用户喜好的菜系、难度
+        // 分析用户喜好的菜系
         val favoriteCuisines = favoriteRecipes.mapNotNull { it.cuisine }.groupingBy { it }.eachCount()
         val preferredCuisine = favoriteCuisines.maxByOrNull { it.value }?.key
         
-        // 筛选匹配用户偏好的食谱
-        return allRecipes.filter { recipe ->
-            var match = true
+        // 计算每个食谱的偏好匹配分数
+        val scoredRecipes = allRecipes.map { recipe ->
+            var score = 0.0
             
-            // 菜系匹配
+            // 1. 菜系匹配 (权重25%)
             if (preferences?.cuisines != null) {
-                match = match && (recipe.cuisine in preferences.cuisines || recipe.cuisine == preferredCuisine)
+                if (recipe.cuisine in preferences.cuisines) score += 25.0
+                else if (recipe.cuisine == preferredCuisine) score += 15.0
             }
             
-            // 口味匹配
+            // 2. 口味匹配 (权重20%)
             if (preferences?.tastes != null) {
-                match = match && preferences.tastes.any { recipe.tags?.contains(it) == true }
+                val matchedTastes = preferences.tastes.count { recipe.tags?.contains(it) == true }
+                score += (matchedTastes.toDouble() / preferences.tastes.size) * 20.0
             }
             
-            // 饮食需求匹配
+            // 3. 营养目标匹配 (权重20%)
+            if (preferences?.nutritionGoals != null) {
+                val matchedGoals = preferences.nutritionGoals.count { recipe.tags?.contains(it) == true }
+                score += (matchedGoals.toDouble() / preferences.nutritionGoals.size) * 20.0
+            }
+            
+            // 4. 难度匹配 (权重15%)
+            if (preferences?.difficulty != null) {
+                if (recipe.difficulty.name == preferences.difficulty) score += 15.0
+                else if (preferences.difficulty == "EASY" && recipe.difficulty.name == "MEDIUM") score += 7.0
+            }
+            
+            // 5. 烹饪时长匹配 (权重10%)
+            val cookingTime = recipe.cookingTime
+            if (preferences?.maxCookingTime != null && cookingTime != null) {
+                if (cookingTime <= preferences.maxCookingTime) score += 10.0
+                else if (cookingTime <= preferences.maxCookingTime + 10) score += 5.0
+            }
+            
+            // 6. 饮食限制匹配 (权重10%) - 必须完全匹配
             if (preferences?.diet != null) {
-                match = match && recipe.tags?.contains(preferences.diet) == true
+                val matchedDiet = preferences.diet.count { recipe.tags?.contains(it) == true }
+                score += (matchedDiet.toDouble() / preferences.diet.size) * 10.0
             }
             
-            match
-        }.sortedByDescending { it.favoriteCount }
+            ScoredRecipe(recipe = recipe, score = score)
+        }
+        
+        // 按分数排序，返回匹配度高的食谱
+        return scoredRecipes
+            .filter { it.score > 0 }  // 只返回有匹配的
+            .sortedByDescending { it.score }
+            .map { it.recipe }
     }
     
     /**
-     * 计算推荐分数
+     * 计算推荐分数 - 增强偏好权重 + AI学习融合
      */
     private fun calculateRecommendationScore(
         recipe: Recipe,
@@ -143,31 +172,90 @@ class RecommendService(
         val recipeIngredients: List<RecipeIngredientSimple> = parseIngredients(recipe.ingredients)
         val userIngredientNames = userIngredients.map { it.name }.toSet()
         
-        // 1. 临期食材优先(权重40%)
+        // 解析用户手动设置的偏好
+        val prefs = try {
+            if (user.preferences != null) {
+                objectMapper.readValue<UserPreferences>(user.preferences!!)
+            } else null
+        } catch (e: Exception) { null }
+        
+        // 获取AI学习到的偏好画像
+        val aiProfile = userBehaviorService.getUserAiProfile(user.id!!)
+        
+        // 1. 临期食材优先(权重25%)
         val expiringCount = userIngredients.count { ingredient ->
             val remaining = ingredient.getRemainingDays()
             remaining != null && remaining <= 7 && ingredient.name in recipeIngredients.map { it.name }
         }
-        score += expiringCount * 40.0
+        score += expiringCount * 25.0
         
-        // 2. 用户偏好匹配(权重30%)
-        try {
-            if (user.preferences != null) {
-                val prefs: UserPreferences = objectMapper.readValue(user.preferences!!)
-                if (recipe.cuisine in (prefs.cuisines ?: emptyList())) score += 30.0
-                if (prefs.tastes?.any { recipe.tags?.contains(it) == true } == true) score += 20.0
+        // 2. 用户手动偏好匹配(权重35%)
+        if (prefs != null) {
+            // 菜系匹配 (10%)
+            if (recipe.cuisine in (prefs.cuisines ?: emptyList())) score += 10.0
+            
+            // 口味匹配 (8%)
+            if (prefs.tastes?.any { recipe.tags?.contains(it) == true } == true) score += 8.0
+            
+            // 营养目标匹配 (8%)
+            if (prefs.nutritionGoals?.any { recipe.tags?.contains(it) == true } == true) score += 8.0
+            
+            // 难度匹配 (5%)
+            if (prefs.difficulty != null && recipe.difficulty.name == prefs.difficulty) score += 5.0
+            
+            // 烹饪时长匹配 (4%)
+            val cookingTime = recipe.cookingTime
+            if (prefs.maxCookingTime != null && cookingTime != null) {
+                if (cookingTime <= prefs.maxCookingTime) score += 4.0
             }
-        } catch (e: Exception) {}
+        }
         
-        // 3. 食材匹配度(权重20%)
+        // 3. AI学习偏好匹配(权重20%) - 自动学习到的偏好
+        if (aiProfile != null) {
+            // 学习到的菜系偏好 (8%)
+            val cuisineScore = aiProfile.cuisinePreferences[recipe.cuisine] ?: 0
+            score += (cuisineScore.coerceAtMost(50) / 50.0) * 8.0
+            
+            // 学习到的口味偏好 (6%)
+            val tags = extractTags(recipe)
+            val tasteScore = tags.sumOf { tag ->
+                aiProfile.tastePreferences[tag] ?: 0
+            }
+            score += (tasteScore.coerceAtMost(30) / 30.0) * 6.0
+            
+            // 学习到的营养偏好 (6%)
+            val nutritionTags = extractNutritionTags(recipe)
+            val nutritionScore = nutritionTags.sumOf { tag ->
+                aiProfile.nutritionPreferences[tag] ?: 0
+            }
+            score += (nutritionScore.coerceAtMost(30) / 30.0) * 6.0
+        }
+        
+        // 4. 食材匹配度(权重15%)
         val matchedIngredients = recipeIngredients.count { it.name in userIngredientNames }
         val matchRate = matchedIngredients.toDouble() / recipeIngredients.size
-        score += matchRate * 20.0
+        score += matchRate * 15.0
         
-        // 4. 热度(权重10%)
-        score += (recipe.favoriteCount / 100.0) * 10.0
+        // 5. 热度(权重5%)
+        score += (recipe.favoriteCount / 100.0) * 5.0
         
         return score
+    }
+    
+    private fun extractTags(recipe: Recipe): List<String> {
+        return try {
+            recipe.tags?.let {
+                objectMapper.readValue(it, List::class.java) as List<String>
+            } ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+    
+    private fun extractNutritionTags(recipe: Recipe): List<String> {
+        val tags = extractTags(recipe)
+        val nutritionKeywords = listOf("减脂", "低卡", "高蛋白", "增肌", "控糖", "低糖", "低脂", "素食")
+        return tags.filter { it in nutritionKeywords }
     }
     
     /**
@@ -254,10 +342,27 @@ data class RecipeIngredientSimple(
 )
 
 /**
- * 用户偏好
+ * 用户偏好 - 扩展版本
  */
 data class UserPreferences(
-    val cuisines: List<String>?,  // 菜系
-    val tastes: List<String>?,    // 口味
-    val diet: String?             // 饮食需求
+    // 基础偏好
+    val cuisines: List<String>?,        // 喜欢的菜系 [川菜, 粤菜, 西餐...]
+    val tastes: List<String>?,          // 口味偏好 [清淡, 微辣, 酸甜...]
+    val diet: List<String>?,            // 饮食限制 [素食, 清真, 无麸质, 低糖...]
+    
+    // 烹饪场景
+    val difficulty: String?,            // 难度偏好 EASY/MEDIUM/HARD
+    val maxCookingTime: Int?,           // 最大烹饪时长(分钟)
+    val cookingScene: String?,          // 烹饪场景 [快手简餐, 周末大餐, 便当带饭, 宴客菜]
+    
+    // 营养目标
+    val nutritionGoals: List<String>?,  // 营养目标 [减脂, 增肌, 控糖, 高蛋白, 均衡]
+    
+    // 设备与条件
+    val cookingEquipment: List<String>?, // 烹饪设备 [燃气灶, 电磁炉, 烤箱, 空气炸锅]
+    val dislikedIngredients: List<String>?, // 忌口食材 [海鲜, 牛羊肉, 鸡蛋...]
+    
+    // 家庭信息
+    val familySize: Int?,               // 家庭人数
+    val cookingFrequency: Int?          // 烹饪频率(次/周)
 )
