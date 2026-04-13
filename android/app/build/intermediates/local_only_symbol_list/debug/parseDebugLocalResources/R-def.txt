@@ -2,12 +2,14 @@ R_DEF: Internal format may change without notice
 local
 color accent
 color black
+color ic_launcher_background
 color primary
 color primary_dark
 color white
 drawable ic_ingredient_placeholder
 drawable ic_launcher_background
 drawable ic_launcher_foreground
+drawable logo_new
 mipmap ic_launcher
 mipmap ic_launcher_round
 string app_name

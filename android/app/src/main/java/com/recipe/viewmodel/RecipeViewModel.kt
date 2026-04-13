@@ -87,6 +87,10 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching
 
+    // 下拉刷新状态
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing
+
     init {
         loadHotRecipes()
         loadLocalRecipes()
@@ -101,6 +105,23 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             dao.getRecipesByUser(userId).collectLatest { recipes ->
                 _localRecipes.value = recipes
+            }
+        }
+    }
+
+    /** 刷新本地食谱（下拉刷新用） */
+    fun refreshLocalRecipes() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                // 重新加载本地食谱
+                loadLocalRecipes()
+                // 同时刷新我的云端食谱（用于同步状态）
+                loadMyRecipes()
+            } catch (e: Exception) {
+                Log.e("RecipeViewModel", "刷新失败: ${e.message}")
+            } finally {
+                _isRefreshing.value = false
             }
         }
     }
@@ -449,9 +470,20 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
                     _recipeDetail.value?.let { detail ->
                         _recipeDetail.value = detail.copy(isFavorited = response.data ?: false)
                     }
+                } else {
+                    _toastMessage.value = response.message ?: "操作失败"
                 }
+            } catch (e: HttpException) {
+                val errorMsg = when (e.code()) {
+                    401 -> "登录已过期，请重新登录"
+                    403 -> "没有权限执行此操作"
+                    else -> "网络错误(${e.code()})"
+                }
+                android.util.Log.e("RecipeViewModel", "toggleFavorite HTTP error: ${e.code()}", e)
+                _toastMessage.value = errorMsg
             } catch (e: Exception) {
-                _toastMessage.value = "操作失败"
+                android.util.Log.e("RecipeViewModel", "toggleFavorite error", e)
+                _toastMessage.value = "操作失败: ${e.message}"
             }
         }
     }

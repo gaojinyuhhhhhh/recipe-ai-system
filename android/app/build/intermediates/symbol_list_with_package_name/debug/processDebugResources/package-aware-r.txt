@@ -400,6 +400,7 @@ color foreground_material_dark
 color foreground_material_light
 color highlighted_text_material_dark
 color highlighted_text_material_light
+color ic_launcher_background
 color material_blue_grey_800
 color material_blue_grey_900
 color material_blue_grey_950
@@ -657,6 +658,7 @@ drawable ic_call_decline_low
 drawable ic_ingredient_placeholder
 drawable ic_launcher_background
 drawable ic_launcher_foreground
+drawable logo_new
 drawable notification_action_background
 drawable notification_bg
 drawable notification_bg_low

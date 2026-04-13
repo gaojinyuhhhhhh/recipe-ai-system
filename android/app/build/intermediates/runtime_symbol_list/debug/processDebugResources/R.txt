@@ -399,6 +399,7 @@ int color foreground_material_dark 0x7f050033
 int color foreground_material_light 0x7f050034
 int color highlighted_text_material_dark 0x7f050035
 int color highlighted_text_material_light 0x7f050036
+int color ic_launcher_background 0x7f050060
 int color material_blue_grey_800 0x7f050037
 int color material_blue_grey_900 0x7f050038
 int color material_blue_grey_950 0x7f050039
@@ -656,6 +657,7 @@ int drawable ic_call_decline_low 0x7f07005c
 int drawable ic_ingredient_placeholder 0x7f07005d
 int drawable ic_launcher_background 0x7f07005e
 int drawable ic_launcher_foreground 0x7f07005f
+int drawable logo_new 0x7f070071
 int drawable notification_action_background 0x7f070060
 int drawable notification_bg 0x7f070061
 int drawable notification_bg_low 0x7f070062

@@ -40,15 +40,24 @@ fun RecipeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("食谱") },
+                title = { 
+                    Text(
+                        "食谱",
+                        style = MaterialTheme.typography.headlineMedium
+                    ) 
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
         },
         floatingActionButton = {
             if (selectedTab == 0) {
-                FloatingActionButton(onClick = onNavigateToCreate) {
+                FloatingActionButton(
+                    onClick = onNavigateToCreate,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
                     Icon(Icons.Default.Add, contentDescription = "创建食谱")
                 }
             }
@@ -105,10 +114,25 @@ private fun LocalRecipesTab(
     onNavigateToCreate: () -> Unit
 ) {
     val localRecipes by recipeViewModel.localRecipes.collectAsState()
+    val isRefreshing by recipeViewModel.isRefreshing.collectAsState()
+    
+    // 下拉刷新状态
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isRefreshing,
+        onRefresh = { recipeViewModel.refreshLocalRecipes() }
+    )
 
-    if (localRecipes.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pullRefresh(pullRefreshState)
+    ) {
+        if (localRecipes.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
                 Icon(
                     Icons.Default.MenuBook,
                     contentDescription = null,
@@ -134,29 +158,36 @@ private fun LocalRecipesTab(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                Text(
-                    "本地食谱 (${localRecipes.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    Text(
+                        "本地食谱 (${localRecipes.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                items(localRecipes) { recipe ->
+                    LocalRecipeCard(
+                        recipe = recipe,
+                        onClick = { onNavigateToLocalDetail(recipe.id) },
+                        recipeViewModel = recipeViewModel
+                    )
+                }
+                item { Spacer(modifier = Modifier.height(72.dp)) }
             }
-            items(localRecipes) { recipe ->
-                LocalRecipeCard(
-                    recipe = recipe,
-                    onClick = { onNavigateToLocalDetail(recipe.id) },
-                    recipeViewModel = recipeViewModel
-                )
-            }
-            item { Spacer(modifier = Modifier.height(72.dp)) }
         }
+        
+        // 下拉刷新指示器
+        PullRefreshIndicator(
+            refreshing = isRefreshing,
+            state = pullRefreshState,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
     }
 }
 

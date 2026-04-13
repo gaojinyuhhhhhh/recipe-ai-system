@@ -12,6 +12,7 @@ import com.recipe.data.remote.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 /**
  * AI生成的完整食谱详情
@@ -117,37 +118,59 @@ class RecipeDetailViewModel(private val application: Application) : androidx.lif
 
         viewModelScope.launch {
             try {
+                // 检查登录状态
+                val token = TokenManager.getToken()
+                if (token.isNullOrBlank()) {
+                    _error.value = "请先登录"
+                    return@launch
+                }
+                Log.d("RecipeDetailVM", "Saving recipe with token length: ${token.length}")
+
                 // 解析食材字符串，如 "鸭肉 500g" -> name="鸭肉", quantity=500, unit="g"
                 val ingredientsList = currentRecipe.ingredients.map { ingredientStr ->
                     parseIngredientString(ingredientStr)
                 }
 
+                // 后端期望 ingredients/steps/tags 是 JSON 字符串，不是对象列表
+                val stepsList = currentRecipe.steps.mapIndexed { index, stepContent ->
+                    mapOf(
+                        "step" to (index + 1),
+                        "content" to stepContent,
+                        "duration" to if (currentRecipe.steps.isNotEmpty()) {
+                            (currentRecipe.cookingTime * 60 / currentRecipe.steps.size).coerceAtLeast(60)
+                        } else 60
+                    )
+                }
+
                 val request = mapOf<String, Any?>(
                     "title" to currentRecipe.name,
                     "description" to currentRecipe.description,
-                    "ingredients" to ingredientsList,
-                    "steps" to currentRecipe.steps.mapIndexed { index, stepContent ->
-                        mapOf(
-                            "step" to (index + 1),
-                            "content" to stepContent,
-                            "duration" to if (currentRecipe.steps.isNotEmpty()) {
-                                (currentRecipe.cookingTime * 60 / currentRecipe.steps.size).coerceAtLeast(60)
-                            } else 60
-                        )
-                    },
+                    "ingredients" to gson.toJson(ingredientsList),  // 序列化为 JSON 字符串
+                    "steps" to gson.toJson(stepsList),              // 序列化为 JSON 字符串
                     "cookingTime" to currentRecipe.cookingTime,
                     "difficulty" to currentRecipe.difficulty,
                     "servings" to currentRecipe.servings,
                     "tips" to currentRecipe.tips,
-                    "tags" to currentRecipe.tags
+                    "tags" to if (currentRecipe.tags.isNotEmpty()) gson.toJson(currentRecipe.tags) else null  // 序列化为 JSON 字符串
                 )
 
+                Log.d("RecipeDetailVM", "Request: $request")
                 val response = api.saveGeneratedRecipe(request)
                 if (response.success) {
                     _isSaved.value = true
+                    Log.d("RecipeDetailVM", "Recipe saved successfully")
                 } else {
                     _error.value = response.message ?: "保存失败"
+                    Log.e("RecipeDetailVM", "Save failed: ${response.message}")
                 }
+            } catch (e: HttpException) {
+                val errorMsg = when (e.code()) {
+                    401 -> "登录已过期，请重新登录"
+                    403 -> "没有权限执行此操作，请检查登录状态"
+                    else -> "网络错误(${e.code()}): ${e.message}"
+                }
+                _error.value = errorMsg
+                Log.e("RecipeDetailVM", "HTTP error ${e.code()}", e)
             } catch (e: Exception) {
                 _error.value = "保存失败: ${e.message}"
                 Log.e("RecipeDetailVM", "保存食谱失败", e)

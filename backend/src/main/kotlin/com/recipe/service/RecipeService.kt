@@ -456,6 +456,7 @@ class RecipeService(
             aiRatingDetail = original.aiRatingDetail,
             aiSuggestion = original.aiSuggestion,
             isAiOptimized = original.isAiOptimized,
+            isAiGenerated = original.isAiGenerated,  // 保留AI生成标记
             originalRecipeId = recipeId,
             isPublic = false
         )

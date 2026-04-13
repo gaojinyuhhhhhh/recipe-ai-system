@@ -66,17 +66,8 @@ fun RecipeDetailFromRecommendScreen(
                     }
                 },
                 actions = {
-                    if (recipe != null && !isSaved) {
-                        IconButton(onClick = { viewModel.saveRecipe() }) {
-                            Icon(Icons.Default.BookmarkBorder, contentDescription = "保存")
-                        }
-                    } else if (isSaved) {
-                        Icon(
-                            Icons.Default.Bookmark,
-                            contentDescription = "已保存",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    // 右上角不放置操作按钮，避免与底部按钮重复
+                    // 所有操作（发布到社区、导入本地）统一在底部按钮区域
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
@@ -233,11 +224,9 @@ private fun RecipeDetailContent(
             // 保存到云端按钮
             if (!isSaved) {
                 Button(
-                    onClick = {
-                        onSave()
-                        showSaveSuccess = true
-                    },
-                    modifier = Modifier.weight(1f)
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f),
+                    enabled = !isSaved  // 保存中/保存后禁用
                 ) {
                     Icon(Icons.Default.CloudUpload, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -279,16 +268,20 @@ private fun RecipeDetailContent(
         Spacer(modifier = Modifier.height(32.dp))
     }
 
-    // 保存成功提示
-    if (showSaveSuccess) {
-        LaunchedEffect(Unit) {
+    // 保存成功提示 - 使用 LaunchedEffect 监听 isSaved 状态变化
+    LaunchedEffect(isSaved) {
+        if (isSaved) {
+            showSaveSuccess = true
             kotlinx.coroutines.delay(2000)
             showSaveSuccess = false
         }
+    }
+    
+    if (showSaveSuccess) {
         Snackbar(
             modifier = Modifier.padding(16.dp)
         ) {
-            Text("食谱已保存到个人食谱！")
+            Text("食谱已发布到社区！")
         }
     }
 }

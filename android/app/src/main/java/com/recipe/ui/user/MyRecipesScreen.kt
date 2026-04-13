@@ -19,24 +19,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.recipe.data.model.Recipe
+import com.recipe.data.local.LocalRecipeEntity
 import com.recipe.viewmodel.RecipeViewModel
+import java.text.SimpleDateFormat
+import java.util.*
 
+/**
+ * 我的食谱页面
+ * 使用本地数据库，与"本地食谱"页面数据保持一致
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun MyRecipesScreen(
     onNavigateBack: () -> Unit = {},
-    onNavigateToDetail: (Long) -> Unit = {},
+    onNavigateToLocalDetail: (Long) -> Unit = {},
     recipeViewModel: RecipeViewModel = viewModel()
 ) {
-    val recipes by recipeViewModel.myRecipes.collectAsState()
-    val isLoading by recipeViewModel.isLoading.collectAsState()
+    // 使用本地食谱数据，与"本地食谱"页面保持一致
+    val localRecipes by recipeViewModel.localRecipes.collectAsState()
+    val isRefreshing by recipeViewModel.isRefreshing.collectAsState()
     val toastMessage by recipeViewModel.toastMessage.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var deleteTarget by remember { mutableStateOf<Long?>(null) }
+    var deleteTarget by remember { mutableStateOf<LocalRecipeEntity?>(null) }
 
-    LaunchedEffect(Unit) { recipeViewModel.loadMyRecipes() }
+    // 加载本地食谱
+    LaunchedEffect(Unit) { recipeViewModel.loadLocalRecipes() }
 
     LaunchedEffect(toastMessage) {
         toastMessage?.let {
@@ -47,8 +55,8 @@ fun MyRecipesScreen(
 
     // 下拉刷新状态
     val pullRefreshState = rememberPullRefreshState(
-        refreshing = isLoading,
-        onRefresh = { recipeViewModel.loadMyRecipes() }
+        refreshing = isRefreshing,
+        onRefresh = { recipeViewModel.refreshLocalRecipes() }
     )
 
     Scaffold(
@@ -71,12 +79,7 @@ fun MyRecipesScreen(
                 .pullRefresh(pullRefreshState)
         ) {
             when {
-                isLoading && recipes.isEmpty() -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                }
-                recipes.isEmpty() -> {
+                localRecipes.isEmpty() -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
@@ -86,6 +89,12 @@ fun MyRecipesScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text("还没有创建食谱", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "去食谱页面创建你的第一道食谱",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
                         }
                     }
                 }
@@ -95,11 +104,21 @@ fun MyRecipesScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(recipes) { recipe ->
-                            MyRecipeCard(
+                        // 显示总数
+                        item {
+                            Text(
+                                text = "共 ${localRecipes.size} 个食谱",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+                        
+                        items(localRecipes, key = { it.id }) { recipe ->
+                            MyLocalRecipeCard(
                                 recipe = recipe,
-                                onClick = { recipe.id?.let { onNavigateToDetail(it) } },
-                                onDelete = { recipe.id?.let { deleteTarget = it } }
+                                onClick = { onNavigateToLocalDetail(recipe.id) },
+                                onDelete = { deleteTarget = recipe }
                             )
                         }
                     }
@@ -108,7 +127,7 @@ fun MyRecipesScreen(
 
             // 下拉刷新指示器
             PullRefreshIndicator(
-                refreshing = isLoading,
+                refreshing = isRefreshing,
                 state = pullRefreshState,
                 modifier = Modifier.align(Alignment.TopCenter)
             )
@@ -116,15 +135,15 @@ fun MyRecipesScreen(
     }
 
     // 删除确认
-    deleteTarget?.let { id ->
+    deleteTarget?.let { recipe ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
             title = { Text("确认删除") },
-            text = { Text("删除后无法恢复，确定要删除这个食谱吗？") },
+            text = { Text("删除后无法恢复，确定要删除「${recipe.title}」吗？") },
             confirmButton = {
                 Button(
                     onClick = {
-                        recipeViewModel.deleteRecipe(id)
+                        recipeViewModel.deleteLocalRecipe(recipe.id)
                         deleteTarget = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
@@ -137,8 +156,26 @@ fun MyRecipesScreen(
     }
 }
 
+/**
+ * 本地食谱卡片（与本地食谱页面样式一致）
+ */
 @Composable
-private fun MyRecipeCard(recipe: Recipe, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun MyLocalRecipeCard(
+    recipe: LocalRecipeEntity,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val dateFormat = remember { SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()) }
+    val tags = remember(recipe.tags) {
+        recipe.tags?.let {
+            try {
+                com.google.gson.Gson().fromJson(it, Array<String>::class.java).toList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } ?: emptyList()
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -159,6 +196,23 @@ private fun MyRecipeCard(recipe: Recipe, onClick: () -> Unit, onDelete: () -> Un
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
+                // 同步状态标签
+                val (statusText, statusColor) = when (recipe.syncStatus) {
+                    "UPLOADED" -> "已发布" to Color(0xFF4CAF50)
+                    "DOWNLOADED" -> "已下载" to Color(0xFF2196F3)
+                    else -> "仅本地" to Color(0xFFFF9800)
+                }
+                Surface(
+                    color = statusColor.copy(alpha = 0.1f),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        text = statusText,
+                        color = statusColor,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
                 IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.Delete, "删除", tint = MaterialTheme.colorScheme.error)
                 }
@@ -173,23 +227,59 @@ private fun MyRecipeCard(recipe: Recipe, onClick: () -> Unit, onDelete: () -> Un
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val diffColor = when (recipe.difficulty) {
-                    "EASY" -> Color(0xFF4CAF50); "MEDIUM" -> Color(0xFFFF9800); "HARD" -> Color(0xFFF44336); else -> Color.Gray
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val diffColor = when (recipe.difficulty) {
+                        "EASY" -> Color(0xFF4CAF50)
+                        "MEDIUM" -> Color(0xFFFF9800)
+                        "HARD" -> Color(0xFFF44336)
+                        else -> Color.Gray
+                    }
+                    val diffDisplay = when (recipe.difficulty) {
+                        "EASY" -> "简单"; "MEDIUM" -> "中等"; "HARD" -> "困难"; else -> recipe.difficulty
+                    }
+                    Surface(
+                        color = diffColor.copy(alpha = 0.1f),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            diffDisplay, color = diffColor, style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    recipe.cuisine?.let {
+                        Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-                Surface(color = diffColor.copy(alpha = 0.1f), shape = MaterialTheme.shapes.small) {
-                    Text(recipe.getDifficultyDisplay(), color = diffColor, style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                
+                // 更新时间
+                Text(
+                    dateFormat.format(Date(recipe.updatedAt)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            // 标签
+            if (tags.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                androidx.compose.foundation.lazy.LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(tags.take(3)) { tag ->
+                        SuggestionChip(
+                            onClick = {},
+                            label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
+                            modifier = Modifier.height(28.dp)
+                        )
+                    }
                 }
-                recipe.cuisine?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                Spacer(modifier = Modifier.weight(1f))
-                Icon(Icons.Default.Visibility, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("${recipe.viewCount}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(Icons.Default.Favorite, null, modifier = Modifier.size(14.dp), tint = Color(0xFFE91E63))
-                Text("${recipe.favoriteCount}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

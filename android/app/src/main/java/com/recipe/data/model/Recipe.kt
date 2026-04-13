@@ -104,6 +104,7 @@ data class RecipeStep(
 data class RecipeComment(
     val id: Long? = null,
     val recipeId: Long = 0,
+    val recipeTitle: String? = null,  // 食谱标题，用于我的评论页面显示
     val userId: Long = 0,
     val username: String? = null,
     val content: String = "",

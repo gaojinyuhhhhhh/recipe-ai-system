@@ -1,24 +1,25 @@
 package com.recipe.ui.user
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.recipe.R
+import com.recipe.ui.components.PrimaryButton
+import com.recipe.ui.components.RecipeTextField
+import com.recipe.ui.components.RecipePasswordField
+import com.recipe.ui.components.TextActionButton
 import com.recipe.viewmodel.AuthState
 import com.recipe.viewmodel.AuthViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     authViewModel: AuthViewModel = viewModel(),
@@ -27,9 +28,13 @@ fun LoginScreen(
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
 
     val loginState by authViewModel.loginState.collectAsState()
+    val isLoading = loginState is AuthState.Loading
+    val isError = loginState is AuthState.Error
+    val errorMessage = if (loginState is AuthState.Error) {
+        (loginState as AuthState.Error).message
+    } else null
 
     // 登录成功后跳转
     LaunchedEffect(loginState) {
@@ -41,101 +46,92 @@ fun LoginScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .padding(horizontal = 32.dp)
+            .padding(top = 120.dp, bottom = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Logo区域
-        Icon(
-            Icons.Default.Restaurant,
+        // Logo区域 - 大标题风格
+        AsyncImage(
+            model = R.drawable.logo_new,
             contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.primary
+            modifier = Modifier.size(120.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "智材识厨",
+            style = MaterialTheme.typography.headlineLarge,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "AI智能食谱",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
             text = "您的智能烹饪助手",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(56.dp))
 
-        // 用户名
-        OutlinedTextField(
+        // 用户名输入框
+        RecipeTextField(
             value = username,
             onValueChange = { username = it },
-            label = { Text("用户名") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+            label = "用户名",
+            placeholder = "请输入用户名",
+            leadingIcon = Icons.Default.Person,
+            enabled = !isLoading,
+            isError = isError
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // 密码
-        OutlinedTextField(
+        // 密码输入框
+        RecipePasswordField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("密码") },
-            singleLine = true,
-            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            trailingIcon = {
-                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Icon(
-                        if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = if (passwordVisible) "隐藏密码" else "显示密码"
-                    )
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
+            label = "密码",
+            placeholder = "请输入密码",
+            enabled = !isLoading,
+            isError = isError,
+            errorMessage = errorMessage
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // 错误提示
-        if (loginState is AuthState.Error) {
-            Text(
-                text = (loginState as AuthState.Error).message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         // 登录按钮
-        Button(
+        PrimaryButton(
+            text = if (isLoading) "登录中..." else "登录",
             onClick = { authViewModel.login(username, password) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            enabled = loginState !is AuthState.Loading
-        ) {
-            if (loginState is AuthState.Loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            } else {
-                Text("登录", style = MaterialTheme.typography.titleMedium)
-            }
+            enabled = !isLoading && username.isNotBlank() && password.isNotBlank()
+        )
+
+        if (isLoading) {
+            Spacer(modifier = Modifier.height(16.dp))
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                color = MaterialTheme.colorScheme.primary
+            )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.weight(1f))
 
         // 注册链接
-        TextButton(onClick = {
-            authViewModel.resetState()
-            onNavigateToRegister()
-        }) {
-            Text("还没有账号？立即注册")
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "还没有账号？",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            TextActionButton(
+                text = "立即注册",
+                onClick = {
+                    authViewModel.resetState()
+                    onNavigateToRegister()
+                }
+            )
         }
     }
 }

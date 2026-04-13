@@ -15,9 +15,12 @@ import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,11 +68,23 @@ fun IngredientListScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.loadIngredients()
-        viewModel.loadAlerts()
-        viewModel.loadIngredientsByFreshness()
-        viewModel.loadIngredientsByCategory()
+    // 使用 lifecycleCurrentState 作为 key，确保每次页面可见时重新加载数据
+    val lifecycleOwner = LocalLifecycleOwner.current
+    
+    // 监听页面可见状态，每次进入页面时刷新数据
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.loadIngredients()
+                viewModel.loadAlerts()
+                viewModel.loadIngredientsByFreshness()
+                viewModel.loadIngredientsByCategory()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     // 下拉刷新状态
@@ -84,7 +99,12 @@ fun IngredientListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("我的食材") },
+                title = { 
+                    Text(
+                        "我的食材",
+                        style = MaterialTheme.typography.headlineMedium
+                    ) 
+                },
                 actions = {
                     IconButton(onClick = onNavigateToChat) {
                         Icon(Icons.Default.SmartToy, "AI助手")
@@ -95,11 +115,18 @@ fun IngredientListScreen(
                     IconButton(onClick = onNavigateToCamera) {
                         Icon(Icons.Default.CameraAlt, "拍照识别")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
+            FloatingActionButton(
+                onClick = { showAddDialog = true },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
                 Icon(Icons.Default.Add, "添加食材")
             }
         }
@@ -343,7 +370,7 @@ fun IngredientItem(
 }
 
 /**
- * 按新鲜度分组的食材列表
+ * 按新鲜度分组的食材列表（支持展开/折叠）
  */
 @Composable
 fun FreshnessGroupedList(
@@ -352,68 +379,62 @@ fun FreshnessGroupedList(
     onConsume: (Ingredient) -> Unit,
     onDelete: (Ingredient) -> Unit
 ) {
+    // 新鲜度分组顺序和配置
+    val freshnessGroups = listOf(
+        Triple("expiringSoon", "即将过期", Color(0xFFE53935)),  // 红色
+        Triple("fresh", "新鲜食材", Color(0xFFFFA726)),         // 橙色
+        Triple("longTerm", "长期保存", Color(0xFF66BB6A))       // 绿色
+    )
+    
+    val groupIcons = mapOf(
+        "expiringSoon" to Icons.Default.Warning,
+        "fresh" to Icons.Default.CheckCircle,
+        "longTerm" to Icons.Default.CalendarToday
+    )
+    
+    // 记录每个分组的展开状态
+    val expandedGroups = remember { mutableStateMapOf<String, Boolean>() }
+    // 默认展开所有有食材的分组
+    LaunchedEffect(groupedIngredients) {
+        freshnessGroups.forEach { (key, _, _) ->
+            val ingredients = groupedIngredients[key] ?: emptyList()
+            if (expandedGroups[key] == null) {
+                expandedGroups[key] = ingredients.isNotEmpty()
+            }
+        }
+    }
+
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // 即将过期 (3天内)
-        val expiringSoon = groupedIngredients["expiringSoon"] ?: emptyList()
-        if (expiringSoon.isNotEmpty()) {
-            item {
+        freshnessGroups.forEach { (key, title, color) ->
+            val ingredients = groupedIngredients[key] ?: emptyList()
+            val isExpanded = expandedGroups[key] ?: true
+            
+            // 分组头部（可点击展开/折叠）
+            item(key = "header_$key") {
                 FreshnessSectionHeader(
-                    title = "即将过期 (${expiringSoon.size})",
-                    color = Color(0xFFE53935),  // 红色
-                    icon = Icons.Default.Warning
+                    title = title,
+                    count = ingredients.size,
+                    color = color,
+                    icon = groupIcons[key] ?: Icons.Default.Folder,
+                    isExpanded = isExpanded,
+                    onToggle = { expandedGroups[key] = !isExpanded }
                 )
             }
-            items(expiringSoon, key = { "exp_${it.id}" }) { ingredient ->
-                IngredientItem(
-                    ingredient = ingredient,
-                    onClick = { onItemClick(ingredient) },
-                    onConsume = { onConsume(ingredient) },
-                    onDelete = { onDelete(ingredient) },
-                    highlight = true
-                )
-            }
-        }
-
-        // 新鲜食材 (4-7天)
-        val fresh = groupedIngredients["fresh"] ?: emptyList()
-        if (fresh.isNotEmpty()) {
-            item {
-                FreshnessSectionHeader(
-                    title = "新鲜食材 (${fresh.size})",
-                    color = Color(0xFFFFA726),  // 橙色
-                    icon = Icons.Default.CheckCircle
-                )
-            }
-            items(fresh, key = { "fresh_${it.id}" }) { ingredient ->
-                IngredientItem(
-                    ingredient = ingredient,
-                    onClick = { onItemClick(ingredient) },
-                    onConsume = { onConsume(ingredient) },
-                    onDelete = { onDelete(ingredient) }
-                )
-            }
-        }
-
-        // 长期保存 (7天以上)
-        val longTerm = groupedIngredients["longTerm"] ?: emptyList()
-        if (longTerm.isNotEmpty()) {
-            item {
-                FreshnessSectionHeader(
-                    title = "长期保存 (${longTerm.size})",
-                    color = Color(0xFF66BB6A),  // 绿色
-                    icon = Icons.Default.CalendarToday
-                )
-            }
-            items(longTerm, key = { "long_${it.id}" }) { ingredient ->
-                IngredientItem(
-                    ingredient = ingredient,
-                    onClick = { onItemClick(ingredient) },
-                    onConsume = { onConsume(ingredient) },
-                    onDelete = { onDelete(ingredient) }
-                )
+            
+            // 展开的食材列表
+            if (isExpanded && ingredients.isNotEmpty()) {
+                items(ingredients, key = { "${key}_${it.id}" }) { ingredient ->
+                    IngredientItem(
+                        ingredient = ingredient,
+                        onClick = { onItemClick(ingredient) },
+                        onConsume = { onConsume(ingredient) },
+                        onDelete = { onDelete(ingredient) },
+                        highlight = key == "expiringSoon"
+                    )
+                }
             }
         }
 
@@ -423,38 +444,69 @@ fun FreshnessGroupedList(
 }
 
 /**
- * 新鲜度分组头部
+ * 新鲜度分组头部（可点击展开/折叠）
  */
 @Composable
 fun FreshnessSectionHeader(
     title: String,
+    count: Int,
     color: Color,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isExpanded: Boolean,
+    onToggle: () -> Unit
 ) {
-    Row(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 2.dp)
+            .clickable { onToggle() },
+        colors = CardDefaults.cardColors(
+            containerColor = if (count > 0) 
+                color.copy(alpha = 0.1f)
+            else 
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = color,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            color = color,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Divider(
-            modifier = Modifier.weight(1f),
-            color = color.copy(alpha = 0.3f)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (count > 0) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = if (count > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "($count)",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (count > 0) color else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            // 展开/折叠图标
+            if (count > 0) {
+                Icon(
+                    imageVector = if (isExpanded) 
+                        Icons.Default.ExpandLess 
+                    else 
+                        Icons.Default.ExpandMore,
+                    contentDescription = if (isExpanded) "折叠" else "展开",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
     }
 }
 
@@ -487,29 +539,44 @@ fun CategoryGroupedList(
             ?: Icons.Default.Folder  // 默认图标
     }
 
-    // 调试：打印所有返回的类别
+    // 记录每个类别的展开状态
+    val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
+    // 默认展开有食材的类别
     LaunchedEffect(groupedIngredients) {
-        android.util.Log.d("CategoryGroupedList", "返回的类别: ${groupedIngredients.keys}")
-        groupedIngredients.forEach { (k, v) ->
-            android.util.Log.d("CategoryGroupedList", "类别 '$k': ${v.size} 个食材")
+        categoryOrder.forEach { (categoryName, _) ->
+            val ingredients = groupedIngredients[categoryName] ?: emptyList()
+            if (expandedCategories[categoryName] == null) {
+                expandedCategories[categoryName] = ingredients.isNotEmpty()
+            }
+        }
+        // 未分类默认展开
+        if (expandedCategories["未分类"] == null) {
+            expandedCategories["未分类"] = (groupedIngredients["未分类"] ?: emptyList()).isNotEmpty()
         }
     }
 
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         // 先显示标准9大类别（按预设顺序），包括空的类别
         categoryOrder.forEach { (categoryName, icon) ->
             val ingredients = groupedIngredients[categoryName] ?: emptyList()
-            // 始终显示该类别，即使为空
-            item {
+            val isExpanded = expandedCategories[categoryName] ?: true
+            
+            // 类别头部（可点击展开/折叠）
+            item(key = "header_$categoryName") {
                 CategorySectionHeader(
-                    title = "$categoryName (${ingredients.size})",
-                    icon = icon
+                    title = categoryName,
+                    count = ingredients.size,
+                    icon = icon,
+                    isExpanded = isExpanded,
+                    onToggle = { expandedCategories[categoryName] = !isExpanded }
                 )
             }
-            if (ingredients.isNotEmpty()) {
+            
+            // 展开的食材列表
+            if (isExpanded && ingredients.isNotEmpty()) {
                 items(ingredients, key = { "${categoryName}_${it.id}" }) { ingredient ->
                     IngredientItem(
                         ingredient = ingredient,
@@ -525,32 +592,46 @@ fun CategoryGroupedList(
         val standardCategories = categoryOrder.map { it.first } + "未分类"
         groupedIngredients.forEach { (categoryName, ingredients) ->
             if (categoryName !in standardCategories && ingredients.isNotEmpty()) {
-                item {
+                val isExpanded = expandedCategories[categoryName] ?: true
+                
+                item(key = "header_$categoryName") {
                     CategorySectionHeader(
-                        title = "$categoryName (${ingredients.size})",
-                        icon = getCategoryIcon(categoryName)
+                        title = categoryName,
+                        count = ingredients.size,
+                        icon = getCategoryIcon(categoryName),
+                        isExpanded = isExpanded,
+                        onToggle = { expandedCategories[categoryName] = !isExpanded }
                     )
                 }
-                items(ingredients, key = { "${categoryName}_${it.id}" }) { ingredient ->
-                    IngredientItem(
-                        ingredient = ingredient,
-                        onClick = { onItemClick(ingredient) },
-                        onConsume = { onConsume(ingredient) },
-                        onDelete = { onDelete(ingredient) }
-                    )
+                
+                if (isExpanded) {
+                    items(ingredients, key = { "${categoryName}_${it.id}" }) { ingredient ->
+                        IngredientItem(
+                            ingredient = ingredient,
+                            onClick = { onItemClick(ingredient) },
+                            onConsume = { onConsume(ingredient) },
+                            onDelete = { onDelete(ingredient) }
+                        )
+                    }
                 }
             }
         }
 
-        // 未分类（始终显示）
+        // 未分类
         val uncategorized = groupedIngredients["未分类"] ?: emptyList()
-        item {
+        val isUncategorizedExpanded = expandedCategories["未分类"] ?: true
+        
+        item(key = "header_uncategorized") {
             CategorySectionHeader(
-                title = "未分类 (${uncategorized.size})",
-                icon = Icons.Default.HelpOutline
+                title = "未分类",
+                count = uncategorized.size,
+                icon = Icons.Default.HelpOutline,
+                isExpanded = isUncategorizedExpanded,
+                onToggle = { expandedCategories["未分类"] = !isUncategorizedExpanded }
             )
         }
-        if (uncategorized.isNotEmpty()) {
+        
+        if (isUncategorizedExpanded && uncategorized.isNotEmpty()) {
             items(uncategorized, key = { "uncat_${it.id}" }) { ingredient ->
                 IngredientItem(
                     ingredient = ingredient,
@@ -567,37 +648,77 @@ fun CategoryGroupedList(
 }
 
 /**
- * 类别分组头部
+ * 类别分组头部（可点击展开/折叠）
  */
 @Composable
 fun CategorySectionHeader(
     title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
+    count: Int,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isExpanded: Boolean,
+    onToggle: () -> Unit
 ) {
-    Row(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 2.dp)
+            .clickable { onToggle() },
+        colors = CardDefaults.cardColors(
+            containerColor = if (count > 0) 
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else 
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Divider(
-            modifier = Modifier.weight(1f),
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (count > 0) 
+                    MaterialTheme.colorScheme.primary 
+                else 
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = if (count > 0) 
+                    MaterialTheme.colorScheme.onSurface 
+                else 
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "($count)",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (count > 0) 
+                    MaterialTheme.colorScheme.primary 
+                else 
+                    MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            // 展开/折叠图标
+            if (count > 0) {
+                Icon(
+                    imageVector = if (isExpanded) 
+                        Icons.Default.ExpandLess 
+                    else 
+                        Icons.Default.ExpandMore,
+                    contentDescription = if (isExpanded) "折叠" else "展开",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
     }
 }
 

@@ -3,17 +3,20 @@ package com.recipe.data.remote
 import com.recipe.data.model.ApiResponse
 import com.recipe.data.model.ExpiryAlert
 import com.recipe.data.model.Ingredient
+import com.recipe.data.model.PreferenceAnalysis
 import com.recipe.data.model.Recipe
 import com.recipe.data.model.RecipeComment
 import com.recipe.data.model.RecipeDetail
 import com.recipe.data.model.RecognizedIngredient
 import com.recipe.data.model.ShoppingItem
+import com.recipe.data.model.SuggestedPreferencesResponse
+import com.recipe.data.model.UserAiProfile
 import retrofit2.http.*
 
 interface ApiService {
     companion object {
-        const val BASE_URL = "http://10.0.2.2:8080/api/"  // 模拟器使用
-        // const val BASE_URL = "http://192.168.185.95:8080/api/"  // 真机使用 - WiFi IP
+        //const val BASE_URL = "http://10.0.2.2:8080/api/"  // 模拟器使用
+       const val BASE_URL = "http://192.168.185.95:8080/api/"  // 真机使用 - WiFi IP
     }
 
     // ==================== 用户认证 ====================
@@ -201,6 +204,20 @@ interface ApiService {
 
     @POST("ai/assist-create-recipe")
     suspend fun assistCreateRecipe(@Body request: Map<String, @JvmSuppressWildcards Any?>): ApiResponse<Map<String, @JvmSuppressWildcards Any?>>
+
+    // ==================== 用户行为与AI学习 ====================
+
+    @GET("user-behavior/profile")
+    suspend fun getAiProfile(): ApiResponse<UserAiProfile>
+
+    @GET("user-behavior/analysis")
+    suspend fun getPreferenceAnalysis(): ApiResponse<PreferenceAnalysis>
+
+    @GET("user-behavior/suggested-preferences")
+    suspend fun getSuggestedPreferences(): ApiResponse<SuggestedPreferencesResponse>
+
+    @POST("user-behavior/apply-suggested-preferences")
+    suspend fun applySuggestedPreferences(): ApiResponse<Map<String, @JvmSuppressWildcards Any?>>
 }
 
 // ==================== 请求/响应数据类 ====================
@@ -231,8 +248,8 @@ data class CustomIngredientInfo(
     val storageMethod: String,
     val storageAdvice: String,
     val freshness: String,
-    val actualQuantity: Double? = null,  // 用户实际购买的数量
-    val unit: String? = null             // 单位
+    val actualQuantity: Double? = null,
+    val unit: String? = null
 )
 
 data class RegisterRequest(

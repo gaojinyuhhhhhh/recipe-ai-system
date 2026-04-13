@@ -119,7 +119,7 @@ class AiController(
             val userPreferences = userService.getUserPreferences(userId)
 
             val systemPrompt = buildString {
-                appendLine("""你是一位资深营养师和星级厨师，名叫"食智助手"。""")
+                appendLine("""你是一位资深营养师和星级厨师，名叫"食小天"。""")
                 appendLine()
                 appendLine("你擅长：")
                 appendLine("1. 根据用户提供的食材推荐菜品")

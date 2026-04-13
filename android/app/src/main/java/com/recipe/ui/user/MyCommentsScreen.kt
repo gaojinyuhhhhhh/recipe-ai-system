@@ -1,5 +1,6 @@
 package com.recipe.ui.user
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +15,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.recipe.data.model.RecipeComment
@@ -23,6 +26,7 @@ import com.recipe.viewmodel.RecipeViewModel
 @Composable
 fun MyCommentsScreen(
     onNavigateBack: () -> Unit = {},
+    onNavigateToDetail: (Long) -> Unit = {},
     recipeViewModel: RecipeViewModel = viewModel()
 ) {
     val comments by recipeViewModel.myComments.collectAsState()
@@ -94,6 +98,7 @@ fun MyCommentsScreen(
                         items(comments) { comment ->
                             CommentCard(
                                 comment = comment,
+                                onClick = { comment.recipeId.takeIf { it > 0 }?.let { onNavigateToDetail(it) } },
                                 onDelete = { comment.id?.let { deleteTarget = it } }
                             )
                         }
@@ -129,14 +134,29 @@ fun MyCommentsScreen(
 }
 
 @Composable
-private fun CommentCard(comment: RecipeComment, onDelete: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun CommentCard(comment: RecipeComment, onClick: () -> Unit, onDelete: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
+                    // 食谱标题（新增）
+                    comment.recipeTitle?.takeIf { it.isNotBlank() }?.let { title ->
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                     Text(
                         text = comment.content,
                         style = MaterialTheme.typography.bodyMedium

@@ -2,10 +2,12 @@ package com.recipe
 
 import android.os.Bundle
 import android.util.Base64
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Kitchen
 import androidx.compose.material.icons.filled.MenuBook
@@ -19,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -107,7 +110,10 @@ fun RecipeApp() {
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    tonalElevation = 0.dp
+                ) {
                     bottomNavItems.forEach { item ->
                         val selected = currentRoute == item.route
                         NavigationBarItem(
@@ -127,7 +133,17 @@ fun RecipeApp() {
                                     contentDescription = item.title
                                 )
                             },
-                            label = { Text(item.title) }
+                            label = { 
+                                Text(
+                                    item.title,
+                                    style = MaterialTheme.typography.labelSmall
+                                ) 
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                            )
                         )
                     }
                 }
@@ -210,8 +226,8 @@ fun RecipeApp() {
             composable("my_recipes") {
                 MyRecipesScreen(
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToDetail = { recipeId ->
-                        navController.navigate("recipe_detail/$recipeId")
+                    onNavigateToLocalDetail = { localId ->
+                        navController.navigate("local_recipe_detail/$localId")
                     }
                 )
             }
@@ -224,13 +240,25 @@ fun RecipeApp() {
                 )
             }
             composable("my_comments") {
-                MyCommentsScreen(onNavigateBack = { navController.popBackStack() })
+                MyCommentsScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToDetail = { recipeId ->
+                        navController.navigate("recipe_detail/$recipeId")
+                    }
+                )
             }
             composable("preferences") {
                 PreferencesScreen(onNavigateBack = { navController.popBackStack() })
             }
             composable("ai_profile") {
-                AiProfileScreen(onNavigateBack = { navController.popBackStack() })
+                AiProfileScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onApplyPreferences = {
+                        navController.navigate("preferences") {
+                            popUpTo("ai_profile") { inclusive = true }
+                        }
+                    }
+                )
             }
 
             // 食谱详情页

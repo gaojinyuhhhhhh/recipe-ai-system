@@ -65,7 +65,7 @@ fun AiChatScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
-                            Text("食智助手", style = MaterialTheme.typography.titleMedium)
+                            Text("食小天", style = MaterialTheme.typography.titleMedium)
                             Text(
                                 "AI烹饪顾问",
                                 style = MaterialTheme.typography.labelSmall,
@@ -165,7 +165,7 @@ fun AiChatScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                "食智助手正在思考...",
+                                "食小天正在思考...",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -274,7 +274,7 @@ fun WelcomeCard(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        "你好！我是食智助手",
+                        "你好！我是食小天",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -329,7 +329,7 @@ fun ChatBubble(
     ) {
         // 角色标签
         Text(
-            text = if (isUser) "我" else "食智助手",
+            text = if (isUser) "我" else "食小天",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)

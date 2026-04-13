@@ -141,7 +141,10 @@ class IngredientViewModel : ViewModel() {
                 val response = api.addIngredient(ingredient)
                 if (response.success) {
                     _toastMessage.value = "添加成功"
+                    // 刷新所有食材数据源（包括分组数据）
                     loadIngredients()
+                    loadIngredientsByFreshness()
+                    loadIngredientsByCategory()
                     loadAlerts()
                 } else {
                     _toastMessage.value = response.message ?: "添加失败"
@@ -165,7 +168,10 @@ class IngredientViewModel : ViewModel() {
                 if (response.success) {
                     val count = response.data?.size ?: 0
                     _toastMessage.value = "成功添加${count}种食材"
+                    // 刷新所有食材数据源（包括分组数据）
                     loadIngredients()
+                    loadIngredientsByFreshness()
+                    loadIngredientsByCategory()
                     loadAlerts()
                 } else {
                     _toastMessage.value = response.message ?: "添加失败"
@@ -204,7 +210,11 @@ class IngredientViewModel : ViewModel() {
                 val response = api.consumeIngredient(id)
                 if (response.success) {
                     _toastMessage.value = "已标记为已消耗"
+                    // 刷新所有相关数据源
                     loadIngredients()
+                    loadIngredientsByFreshness()
+                    loadIngredientsByCategory()
+                    loadAlerts()
                 } else {
                     _toastMessage.value = response.message ?: "操作失败"
                 }
@@ -219,16 +229,23 @@ class IngredientViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 _loading.value = true
+                Log.d("IngredientVM", "开始识别图片，Base64长度: ${imageBase64.length}")
+                
                 val response = api.recognizeIngredients(mapOf("imageBase64" to imageBase64))
+                Log.d("IngredientVM", "识别响应: success=${response.success}, dataSize=${response.data?.size}, message=${response.message}")
+                
                 if (response.success) {
                     val items = response.data ?: emptyList()
                     _recognizedIngredients.value = items
+                    Log.d("IngredientVM", "识别成功，共 ${items.size} 种食材")
                     onSuccess(items)
                 } else {
                     _error.value = response.message ?: "识别失败"
+                    Log.e("IngredientVM", "识别失败: ${response.message}")
                 }
             } catch (e: Exception) {
                 _error.value = "识别失败: ${e.message}"
+                Log.e("IngredientVM", "识别异常", e)
             } finally {
                 _loading.value = false
             }
