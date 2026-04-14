@@ -1,6 +1,8 @@
 package com.recipe.ui.user
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.ui.layout.ContentScale
@@ -47,7 +49,8 @@ fun LoginScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 32.dp)
-            .padding(top = 120.dp, bottom = 32.dp),
+            .padding(top = 80.dp, bottom = 32.dp)
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Logo区域 - 大标题风格

@@ -36,7 +36,8 @@ fun RecipeTextField(
     singleLine: Boolean = true,
     enabled: Boolean = true,
     isError: Boolean = false,
-    errorMessage: String? = null
+    errorMessage: String? = null,
+    visualTransformation: VisualTransformation = VisualTransformation.None
 ) {
     Column(modifier = modifier) {
         OutlinedTextField(
@@ -64,6 +65,7 @@ fun RecipeTextField(
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                 errorBorderColor = MaterialTheme.colorScheme.error
             ),
+            visualTransformation = visualTransformation,
             keyboardOptions = KeyboardOptions(
                 keyboardType = keyboardType,
                 imeAction = imeAction
@@ -113,6 +115,7 @@ fun RecipePasswordField(
         enabled = enabled,
         isError = isError,
         errorMessage = errorMessage,
+        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
         trailingIcon = {
             IconButton(onClick = { passwordVisible = !passwordVisible }) {
                 Icon(

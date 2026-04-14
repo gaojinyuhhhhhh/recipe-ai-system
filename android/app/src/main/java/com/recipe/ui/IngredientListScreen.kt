@@ -29,6 +29,9 @@ import coil.compose.AsyncImage
 import com.recipe.R
 import com.recipe.data.model.ExpiryAlert
 import com.recipe.data.model.Ingredient
+import com.recipe.ui.components.EmptyIngredientsState
+import com.recipe.ui.components.IngredientCard
+import com.recipe.ui.components.SecondaryButton
 import com.recipe.ui.ingredient.AddIngredientDialog
 import com.recipe.ui.ingredient.EditIngredientDialog
 import com.recipe.viewmodel.IngredientViewModel
@@ -173,40 +176,9 @@ fun IngredientListScreen(
                     }
                     ingredients.isEmpty() -> {
                         // 空状态
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    Icons.Default.Kitchen, null,
-                                    modifier = Modifier.size(80.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    "冰箱还是空的",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    "点击 + 手动添加，或拍照识别食材",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    OutlinedButton(onClick = { showAddDialog = true }) {
-                                        Icon(Icons.Default.Add, null, Modifier.size(18.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("手动添加")
-                                    }
-                                    OutlinedButton(onClick = onNavigateToCamera) {
-                                        Icon(Icons.Default.CameraAlt, null, Modifier.size(18.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("拍照识别")
-                                    }
-                                }
-                            }
-                        }
+                        EmptyIngredientsState(
+                            onAddClick = { showAddDialog = true }
+                        )
                     }
                     else -> {
                         // 根据视图模式显示不同列表
@@ -263,111 +235,7 @@ fun IngredientListScreen(
     }
 }
 
-@Composable
-fun IngredientItem(
-    ingredient: Ingredient,
-    onClick: () -> Unit,
-    onConsume: () -> Unit,
-    onDelete: () -> Unit,
-    highlight: Boolean = false
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = if (highlight) {
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-            )
-        } else CardDefaults.cardColors()
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 食材图片
-            AsyncImage(
-                model = ingredient.imageUrl ?: R.drawable.ic_ingredient_placeholder,
-                contentDescription = null,
-                modifier = Modifier.size(56.dp)
-            )
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // 食材信息
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = ingredient.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (ingredient.isConsumed) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            "已消耗",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                // 分类+数量
-                val infoText = buildString {
-                    ingredient.category?.let { append(it) }
-                    ingredient.quantity?.let { q ->
-                        if (isNotEmpty()) append(" · ")
-                        append(q.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() })
-                        ingredient.unit?.let { append(it) }
-                    }
-                    ingredient.storageMethod?.let {
-                        if (isNotEmpty()) append(" · ")
-                        append(it)
-                    }
-                }
-                if (infoText.isNotBlank()) {
-                    Text(
-                        text = infoText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // 过期状态
-                ingredient.getRemainingDays()?.let { days ->
-                    Text(
-                        text = when {
-                            days < 0 -> "已过期${-days}天"
-                            days == 0 -> "今天到期！"
-                            days == 1 -> "明天到期"
-                            days <= 7 -> "还剩${days}天"
-                            else -> "剩余${days}天"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = ingredient.getPriorityColor()
-                    )
-                }
-            }
-
-            // 操作按钮
-            if (!ingredient.isConsumed) {
-                IconButton(onClick = onConsume) {
-                    Icon(
-                        Icons.Default.CheckCircle, "消耗",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Default.Delete, "删除",
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                )
-            }
-        }
-    }
-}
 
 /**
  * 按新鲜度分组的食材列表（支持展开/折叠）
@@ -405,8 +273,8 @@ fun FreshnessGroupedList(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        contentPadding = PaddingValues(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         freshnessGroups.forEach { (key, title, color) ->
             val ingredients = groupedIngredients[key] ?: emptyList()
@@ -427,12 +295,12 @@ fun FreshnessGroupedList(
             // 展开的食材列表
             if (isExpanded && ingredients.isNotEmpty()) {
                 items(ingredients, key = { "${key}_${it.id}" }) { ingredient ->
-                    IngredientItem(
+                    IngredientCard(
                         ingredient = ingredient,
                         onClick = { onItemClick(ingredient) },
                         onConsume = { onConsume(ingredient) },
                         onDelete = { onDelete(ingredient) },
-                        highlight = key == "expiringSoon"
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -520,7 +388,7 @@ fun CategoryGroupedList(
     onConsume: (Ingredient) -> Unit,
     onDelete: (Ingredient) -> Unit
 ) {
-    // 类别顺序和图标映射（标准9大类别）
+    // 类别顺序和图标映射（标准10大类别）
     val categoryOrder = listOf(
         "肉类" to Icons.Default.Restaurant,
         "海鲜" to Icons.Default.Water,
@@ -530,7 +398,8 @@ fun CategoryGroupedList(
         "豆制品" to Icons.Default.Grain,
         "调味类" to Icons.Default.LocalDining,
         "粮油" to Icons.Default.Grass,
-        "干货" to Icons.Default.Inventory
+        "干货" to Icons.Default.Inventory,
+        "饮品" to Icons.Default.LocalCafe
     )
 
     // 获取图标映射
@@ -556,8 +425,8 @@ fun CategoryGroupedList(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        contentPadding = PaddingValues(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         // 先显示标准9大类别（按预设顺序），包括空的类别
         categoryOrder.forEach { (categoryName, icon) ->
@@ -578,11 +447,12 @@ fun CategoryGroupedList(
             // 展开的食材列表
             if (isExpanded && ingredients.isNotEmpty()) {
                 items(ingredients, key = { "${categoryName}_${it.id}" }) { ingredient ->
-                    IngredientItem(
+                    IngredientCard(
                         ingredient = ingredient,
                         onClick = { onItemClick(ingredient) },
                         onConsume = { onConsume(ingredient) },
-                        onDelete = { onDelete(ingredient) }
+                        onDelete = { onDelete(ingredient) },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -606,11 +476,12 @@ fun CategoryGroupedList(
                 
                 if (isExpanded) {
                     items(ingredients, key = { "${categoryName}_${it.id}" }) { ingredient ->
-                        IngredientItem(
+                        IngredientCard(
                             ingredient = ingredient,
                             onClick = { onItemClick(ingredient) },
                             onConsume = { onConsume(ingredient) },
-                            onDelete = { onDelete(ingredient) }
+                            onDelete = { onDelete(ingredient) },
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -633,11 +504,12 @@ fun CategoryGroupedList(
         
         if (isUncategorizedExpanded && uncategorized.isNotEmpty()) {
             items(uncategorized, key = { "uncat_${it.id}" }) { ingredient ->
-                IngredientItem(
+                IngredientCard(
                     ingredient = ingredient,
                     onClick = { onItemClick(ingredient) },
                     onConsume = { onConsume(ingredient) },
-                    onDelete = { onDelete(ingredient) }
+                    onDelete = { onDelete(ingredient) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
         }

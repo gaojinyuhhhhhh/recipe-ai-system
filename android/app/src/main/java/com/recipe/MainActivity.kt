@@ -323,13 +323,18 @@ fun RecipeApp() {
 
             // 其他子页面
             composable("camera") {
+                val isRecognizing by ingredientViewModel.loading.collectAsState()
+                val recognitionError by ingredientViewModel.error.collectAsState()
                 CameraScreen(
                     onImageCaptured = { base64 ->
                         ingredientViewModel.recognizeImage(base64) { _ ->
                             navController.navigate("recognition_result")
                         }
                     },
-                    onDismiss = { navController.popBackStack() }
+                    onDismiss = { navController.popBackStack() },
+                    isRecognizing = isRecognizing,
+                    recognitionError = recognitionError,
+                    onClearError = { ingredientViewModel.clearError() }
                 )
             }
 

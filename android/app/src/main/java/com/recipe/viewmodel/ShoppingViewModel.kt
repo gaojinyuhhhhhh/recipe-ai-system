@@ -122,6 +122,7 @@ class ShoppingViewModel : ViewModel() {
                     _currentProcessingItem.value = null
                     _inferredInfo.value = null
                     loadPendingItems()
+                    loadCompletedItems()  // 刷新已完成列表
                 } else {
                     _toastMessage.value = response.message ?: "添加失败"
                 }
@@ -228,7 +229,7 @@ class ShoppingViewModel : ViewModel() {
     }
 
     /**
-     * 批量勾选完成
+     * 批量勾选完成（仅标记完成，不入库）
      */
     fun completeSelected() {
         val ids = _selectedIds.value.toList()
@@ -240,7 +241,7 @@ class ShoppingViewModel : ViewModel() {
             try {
                 val response = api.completeShoppingItems(mapOf("itemIds" to ids))
                 if (response.success) {
-                    _toastMessage.value = "已完成${response.data ?: ids.size}个采购项"
+                    _toastMessage.value = "已标记完成${response.data ?: ids.size}个，请前往已完成列表入库"
                     _selectedIds.value = emptySet()
                     loadPendingItems()
                     loadCompletedItems()
@@ -252,14 +253,14 @@ class ShoppingViewModel : ViewModel() {
     }
 
     /**
-     * 单个勾选完成
+     * 单个勾选完成（仅标记完成，不入库）
      */
-    fun completeItem(itemId: Long) {
+    fun completeSingleItem(itemId: Long) {
         viewModelScope.launch {
             try {
                 val response = api.completeShoppingItems(mapOf("itemIds" to listOf(itemId)))
                 if (response.success) {
-                    _toastMessage.value = response.message ?: "已完成并添加到食材库"
+                    _toastMessage.value = "已标记完成，请前往已完成列表入库"
                     loadPendingItems()
                     loadCompletedItems()
                 } else {
@@ -309,6 +310,28 @@ class ShoppingViewModel : ViewModel() {
                 }
             } catch (e: Exception) {
                 _toastMessage.value = "删除失败"
+            }
+        }
+    }
+
+    /**
+     * 清空所有已完成采购项
+     */
+    fun clearAllCompleted() {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                val response = api.clearCompletedItems()
+                if (response.success) {
+                    _toastMessage.value = "已清空"
+                    loadCompletedItems()
+                } else {
+                    _toastMessage.value = response.message ?: "清空失败"
+                }
+            } catch (e: Exception) {
+                _toastMessage.value = "清空失败: ${e.message}"
+            } finally {
+                _isLoading.value = false
             }
         }
     }

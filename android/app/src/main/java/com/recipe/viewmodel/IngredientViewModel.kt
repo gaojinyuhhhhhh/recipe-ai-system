@@ -325,6 +325,8 @@ class IngredientViewModel : ViewModel() {
                 if (response.success) {
                     _toastMessage.value = "已删除"
                     loadIngredients()
+                } else {
+                    _toastMessage.value = "删除失败: ${response.message}"
                 }
             } catch (e: Exception) {
                 _toastMessage.value = "删除失败: ${e.message}"

@@ -1,13 +1,10 @@
 package com.recipe.ui.shopping
 
 import android.widget.Toast
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
@@ -19,16 +16,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.recipe.data.model.ShoppingItem
+import com.recipe.ui.components.CategoryHeader
+import com.recipe.ui.components.EmptyShoppingState
+import com.recipe.ui.components.ExpandableCategoryHeader
+import com.recipe.ui.components.ShoppingItemCard
 import com.recipe.viewmodel.ShoppingViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
@@ -46,6 +43,7 @@ fun ShoppingScreen(
     val context = LocalContext.current
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var showClearDialog by remember { mutableStateOf(false) }
     var showCompletedTab by remember { mutableStateOf(false) }
 
     // Toast
@@ -86,10 +84,18 @@ fun ShoppingScreen(
                             Icon(Icons.Default.CheckCircle, "批量完成")
                         }
                     }
-                    if (showCompletedTab && selectedIds.isNotEmpty()) {
-                        // 批量同步到食材库
-                        IconButton(onClick = { shoppingViewModel.syncSelectedToIngredients() }) {
-                            Icon(Icons.Default.Sync, "同步到食材库")
+                    if (showCompletedTab) {
+                        if (selectedIds.isNotEmpty()) {
+                            // 批量同步到食材库
+                            IconButton(onClick = { shoppingViewModel.syncSelectedToIngredients() }) {
+                                Icon(Icons.Default.Sync, "同步到食材库")
+                            }
+                        }
+                        // 清空已完成按钮
+                        if (completedItems.isNotEmpty()) {
+                            IconButton(onClick = { showClearDialog = true }) {
+                                Icon(Icons.Default.DeleteSweep, "清空已完成")
+                            }
                         }
                     }
                 }
@@ -114,6 +120,14 @@ fun ShoppingScreen(
             Column(
                 modifier = Modifier.fillMaxSize()
             ) {
+                // 提醒横幅：有待入库的已完成食材
+                if (completedItems.isNotEmpty() && !showCompletedTab) {
+                    CompletedItemsReminderBanner(
+                        count = completedItems.size,
+                        onClick = { showCompletedTab = true }
+                    )
+                }
+                
                 // Tab切换
                 TabRow(
                     selectedTabIndex = if (showCompletedTab) 1 else 0
@@ -187,60 +201,87 @@ fun ShoppingScreen(
                         CircularProgressIndicator()
                     }
                 } else if (currentItems.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Default.ShoppingCart,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = if (showCompletedTab) "暂无已完成的采购项" else "购物清单为空",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            if (!showCompletedTab) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "点击右下角 + 添加采购项",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                )
-                            }
+                    EmptyShoppingState(
+                        isCompletedTab = showCompletedTab,
+                        onAddClick = { showAddDialog = true }
+                    )
+                } else {
+                    // 已完成列表按时间倒序排列，待购买按类别分组
+                    val sortedItems = if (showCompletedTab) {
+                        // 已完成：按 completedAt 时间倒序
+                        currentItems.sortedByDescending { it.completedAt ?: it.createdAt ?: "" }
+                    } else {
+                        // 待购买：保持原顺序
+                        currentItems
+                    }
+                    
+                    // 按类别分组显示（使用标准10大类别）
+                    val grouped = sortedItems.groupBy { it.getCategoryDisplay() }
+                    val categoryOrder = listOf("肉类", "海鲜", "蔬菜类", "水果", "蛋奶", "豆制品", "调味类", "粮油", "干货", "饮品", "未分类")
+                    
+                    // 按顺序排序，确保有食材的类别排在前面
+                    val sortedGroups = categoryOrder.mapNotNull { category ->
+                        grouped[category]?.let { category to it }
+                    }.toMutableList()
+                    
+                    // 添加不在标准类别中的其他类别
+                    grouped.forEach { (category, items) ->
+                        if (category !in categoryOrder) {
+                            sortedGroups.add(category to items)
                         }
                     }
-                } else {
-                    // 按类别分组显示（使用标准9大类别）
-                    val grouped = currentItems.groupBy { it.getCategoryDisplay() }
-                    val categoryOrder = listOf("肉类", "海鲜", "蔬菜类", "水果", "蛋奶", "豆制品", "调味类", "粮油", "干货", "未分类")
-                    val sortedGroups = grouped.entries.sortedBy {
-                        val idx = categoryOrder.indexOf(it.key)
-                        if (idx >= 0) idx else 99
+
+                    // 记录展开状态
+                    val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
+                    // 默认展开所有类别
+                    LaunchedEffect(sortedGroups) {
+                        sortedGroups.forEach { (category, _) ->
+                            if (expandedCategories[category] == null) {
+                                expandedCategories[category] = true
+                            }
+                        }
                     }
 
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        contentPadding = PaddingValues(vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
                         sortedGroups.forEach { (category, items) ->
-                            item {
-                                CategoryHeader(category = category, count = items.size)
-                            }
-                            items(items, key = { it.id ?: 0L }) { item ->
-                                ShoppingItemCard(
-                                    item = item,
-                                    isSelected = selectedIds.contains(item.id),
-                                    isCompletedTab = showCompletedTab,
-                                    onToggleSelect = { item.id?.let { shoppingViewModel.toggleSelection(it) } },
-                                    onComplete = { shoppingViewModel.startProcessingItem(item) },
-                                    onDelete = { item.id?.let { shoppingViewModel.deleteItem(it) } }
+                            val isExpanded = expandedCategories[category] ?: true
+                            
+                            // 类别头部（可点击展开/折叠）
+                            item(key = "header_$category") {
+                                ExpandableCategoryHeader(
+                                    category = category, 
+                                    count = items.size,
+                                    isExpanded = isExpanded,
+                                    onToggle = { expandedCategories[category] = !isExpanded },
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                                 )
+                            }
+                            
+                            // 展开的购物项列表
+                            if (isExpanded) {
+                                items(items, key = { "${category}_${it.id}" }) { item ->
+                                    ShoppingItemCard(
+                                        item = item,
+                                        isSelected = selectedIds.contains(item.id),
+                                        isCompletedTab = showCompletedTab,
+                                        onToggleSelect = { item.id?.let { shoppingViewModel.toggleSelection(it) } },
+                                        onComplete = { 
+                                            if (showCompletedTab) {
+                                                // 已完成列表：点击入库，调用AI推断
+                                                shoppingViewModel.startProcessingItem(item)
+                                            } else {
+                                                // 待购买列表：标记完成
+                                                item.id?.let { shoppingViewModel.completeSingleItem(it) }
+                                            }
+                                        },
+                                        onDelete = { item.id?.let { shoppingViewModel.deleteItem(it) } },
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                    )
+                                }
                             }
                         }
 
@@ -280,190 +321,82 @@ fun ShoppingScreen(
             }
         )
     }
-}
 
-@Composable
-fun CategoryHeader(category: String, count: Int) {
-    // 标准9大类别颜色和图标
-    val color = when (category) {
-        "肉类" -> Color(0xFFE53935)
-        "海鲜" -> Color(0xFF1E88E5)
-        "蔬菜类" -> Color(0xFF43A047)
-        "水果" -> Color(0xFFFB8C00)
-        "蛋奶" -> Color(0xFFFDD835)
-        "豆制品" -> Color(0xFF8E24AA)
-        "调味类" -> Color(0xFF6D4C41)
-        "粮油" -> Color(0xFFFFA726)
-        "干货" -> Color(0xFF78909C)
-        else -> Color(0xFF607D8B)
-    }
-    val icon = when (category) {
-        "肉类" -> Icons.Default.Restaurant
-        "海鲜" -> Icons.Default.Water
-        "蔬菜类" -> Icons.Default.Spa
-        "水果" -> Icons.Default.ShoppingBasket
-        "蛋奶" -> Icons.Default.Egg
-        "豆制品" -> Icons.Default.Grain
-        "调味类" -> Icons.Default.LocalDining
-        "粮油" -> Icons.Default.Grass
-        "干货" -> Icons.Default.Inventory
-        else -> Icons.Default.Category
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            icon, null,
-            tint = color,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = category,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = color
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = "($count)",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-fun ShoppingItemCard(
-    item: ShoppingItem,
-    isSelected: Boolean,
-    isCompletedTab: Boolean,
-    onToggleSelect: () -> Unit,
-    onComplete: () -> Unit,
-    onDelete: () -> Unit
-) {
-    var showDeleteDialog by remember { mutableStateOf(false) }
-
-    val bgColor by animateColorAsState(
-        targetValue = if (isSelected) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-        } else {
-            MaterialTheme.colorScheme.surface
-        },
-        label = "bgColor"
-    )
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onToggleSelect() },
-        colors = CardDefaults.cardColors(containerColor = bgColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 选择框 / 完成勾选
-            if (!isCompletedTab) {
-                Checkbox(
-                    checked = isSelected,
-                    onCheckedChange = { onToggleSelect() },
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-
-            // 内容
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    textDecoration = if (isCompletedTab) TextDecoration.LineThrough else TextDecoration.None,
-                    color = if (isCompletedTab) {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    }
-                )
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (item.getQuantityDisplay().isNotEmpty()) {
-                        Text(
-                            text = item.getQuantityDisplay(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-                    if (item.aiAdvice != null) {
-                        Text(
-                            text = item.aiAdvice,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-
-            // 操作按钮
-            if (!isCompletedTab) {
-                IconButton(
-                    onClick = onComplete,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Done,
-                        "完成",
-                        tint = Color(0xFF4CAF50),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            IconButton(
-                onClick = { showDeleteDialog = true },
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    Icons.Default.Delete,
-                    "删除",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-    }
-
-    if (showDeleteDialog) {
+    // 清空已完成确认对话框
+    if (showClearDialog) {
         AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("确认删除") },
-            text = { Text("确定要删除「${item.name}」吗？") },
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("清空已完成") },
+            text = { Text("确定要清空所有已完成的采购项吗？此操作不可撤销。") },
             confirmButton = {
-                TextButton(onClick = {
-                    onDelete()
-                    showDeleteDialog = false
-                }) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                TextButton(
+                    onClick = {
+                        shoppingViewModel.clearAllCompleted()
+                        showClearDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("清空")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
+                TextButton(onClick = { showClearDialog = false }) {
                     Text("取消")
                 }
             }
         )
+    }
+}
+
+
+
+/**
+ * 已完成食材提醒横幅
+ */
+@Composable
+fun CompletedItemsReminderBanner(
+    count: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "有 $count 个已购买食材待入库",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "去处理 →",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }
 
@@ -479,7 +412,7 @@ fun AddShoppingItemDialog(
     var selectedCategory by remember { mutableStateOf<String?>(null) }
 
     // 标准9大类别，与食材库分类展示保持一致
-    val categories = listOf("肉类", "海鲜", "蔬菜类", "水果", "蛋奶", "豆制品", "调味类", "粮油", "干货")
+    val categories = listOf("肉类", "海鲜", "蔬菜类", "水果", "蛋奶", "豆制品", "调味类", "粮油", "干货", "饮品")
     val units = listOf("g", "kg", "ml", "L", "个", "根", "把", "包", "瓶", "盒")
 
     AlertDialog(

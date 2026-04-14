@@ -48,7 +48,10 @@ private suspend fun getCameraProvider(context: Context): ProcessCameraProvider {
 @Composable
 fun CameraScreen(
     onImageCaptured: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isRecognizing: Boolean = false,
+    recognitionError: String? = null,
+    onClearError: () -> Unit = {}
 ) {
     val context = LocalContext.current
     
@@ -82,7 +85,10 @@ fun CameraScreen(
             // 已授权 - 显示相机预览
             CameraPreviewContent(
                 onImageCaptured = onImageCaptured,
-                onDismiss = onDismiss
+                onDismiss = onDismiss,
+                isRecognizing = isRecognizing,
+                recognitionError = recognitionError,
+                onClearError = onClearError
             )
         }
         permissionDenied -> {
@@ -110,7 +116,10 @@ fun CameraScreen(
 @Composable
 private fun CameraPreviewContent(
     onImageCaptured: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isRecognizing: Boolean = false,
+    recognitionError: String? = null,
+    onClearError: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -197,7 +206,7 @@ private fun CameraPreviewContent(
             }
         }
         
-        // 错误提示
+        // 错误提示（拍照错误）
         captureError?.let { error ->
             Card(
                 modifier = Modifier
@@ -213,6 +222,75 @@ private fun CameraPreviewContent(
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     style = MaterialTheme.typography.bodyMedium
                 )
+            }
+        }
+
+        // 错误提示（识别错误）
+        recognitionError?.let { error ->
+            Card(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 120.dp, start = 16.dp, end = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = error,
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    IconButton(onClick = onClearError) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "关闭",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+        }
+
+        // AI识别中遮罩
+        if (isRecognizing) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = 0.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // 半透明背景
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color.Black.copy(alpha = 0.6f)
+                ) {}
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        strokeWidth = 4.dp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "AI正在识别食材...",
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "请稍候，这可能需要几秒钟",
+                        color = Color.White.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
         

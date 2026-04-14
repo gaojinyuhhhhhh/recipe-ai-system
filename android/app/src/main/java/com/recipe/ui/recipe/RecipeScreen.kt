@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.recipe.data.local.LocalRecipeEntity
 import com.recipe.data.model.Recipe
+import com.recipe.ui.components.EmptyRecipesState
+import com.recipe.ui.components.RecipeCard
 import com.recipe.viewmodel.RecipeViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -128,57 +130,21 @@ private fun LocalRecipesTab(
             .pullRefresh(pullRefreshState)
     ) {
         if (localRecipes.isEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    Icons.Default.MenuBook,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "还没有本地食谱",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "点击右下角 + 创建你的第一道食谱",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "或者去食谱社区下载别人分享的食谱",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            EmptyRecipesState(onCreateClick = onNavigateToCreate)
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                item {
-                    Text(
-                        "本地食谱 (${localRecipes.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
                 items(localRecipes) { recipe ->
-                    LocalRecipeCard(
+                    RecipeCard(
                         recipe = recipe,
                         onClick = { onNavigateToLocalDetail(recipe.id) },
-                        recipeViewModel = recipeViewModel
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
-                item { Spacer(modifier = Modifier.height(72.dp)) }
+                item { Spacer(modifier = Modifier.height(80.dp)) }
             }
         }
         
@@ -188,143 +154,6 @@ private fun LocalRecipesTab(
             state = pullRefreshState,
             modifier = Modifier.align(Alignment.TopCenter)
         )
-    }
-}
-
-@Composable
-private fun LocalRecipeCard(
-    recipe: LocalRecipeEntity,
-    onClick: () -> Unit,
-    recipeViewModel: RecipeViewModel
-) {
-    val tags = recipeViewModel.parseTags(recipe.tags)
-    val dateFormat = remember { SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()) }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // 标题行
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = recipe.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                // 同步状态标签
-                val (statusText, statusColor) = when (recipe.syncStatus) {
-                    "UPLOADED" -> "已发布" to Color(0xFF4CAF50)
-                    "DOWNLOADED" -> "已下载" to Color(0xFF2196F3)
-                    else -> "仅本地" to Color(0xFFFF9800)
-                }
-                Surface(
-                    color = statusColor.copy(alpha = 0.1f),
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        text = statusText,
-                        color = statusColor,
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-            }
-
-            // 描述
-            recipe.description?.let { desc ->
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = desc,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 标签
-            if (tags.isNotEmpty()) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    items(tags.take(4)) { tag ->
-                        SuggestionChip(
-                            onClick = {},
-                            label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
-                            modifier = Modifier.height(28.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            // 底部信息
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val diffColor = when (recipe.difficulty) {
-                        "EASY" -> Color(0xFF4CAF50)
-                        "MEDIUM" -> Color(0xFFFF9800)
-                        "HARD" -> Color(0xFFF44336)
-                        else -> Color.Gray
-                    }
-                    val diffDisplay = when (recipe.difficulty) {
-                        "EASY" -> "简单"; "MEDIUM" -> "中等"; "HARD" -> "困难"; else -> recipe.difficulty
-                    }
-                    Surface(
-                        color = diffColor.copy(alpha = 0.1f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(diffDisplay, color = diffColor, style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                    }
-
-                    recipe.cookingTime?.let { time ->
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(Icons.Default.Schedule, null, modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text("${time}分钟", style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-
-                    recipe.cuisine?.let { c ->
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(c, style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-
-                // 来源信息
-                recipe.originalAuthor?.let { author ->
-                    Text(
-                        "来自: $author",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (recipe.originalAuthor == null) {
-                    Text(
-                        dateFormat.format(Date(recipe.updatedAt)),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
     }
 }
 
@@ -489,29 +318,17 @@ private fun CommunityRecipesTab(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        contentPadding = PaddingValues(vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
-                        item {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.Person, null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    "我发布的食谱 (${myRecipes.size})",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
                         items(myRecipes) { recipe ->
-                            RecipeCard(recipe = recipe, onClick = {
-                                recipe.id?.let { onNavigateToDetail(it) }
-                            })
+                            RecipeCard(
+                                recipe = recipe, 
+                                onClick = { recipe.id?.let { onNavigateToDetail(it) } },
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
                         }
+                        item { Spacer(modifier = Modifier.height(80.dp)) }
                     }
                 }
             } else if (isSearching) {
@@ -527,19 +344,17 @@ private fun CommunityRecipesTab(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        contentPadding = PaddingValues(vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
-                        item {
-                            Text("搜索结果 (${searchResults.size})",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold)
-                        }
                         items(searchResults) { recipe ->
-                            RecipeCard(recipe = recipe, onClick = {
-                                recipe.id?.let { onNavigateToDetail(it) }
-                            })
+                            RecipeCard(
+                                recipe = recipe, 
+                                onClick = { recipe.id?.let { onNavigateToDetail(it) } },
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
                         }
+                        item { Spacer(modifier = Modifier.height(80.dp)) }
                     }
                 }
             } else {
@@ -565,23 +380,17 @@ private fun CommunityRecipesTab(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        contentPadding = PaddingValues(vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
-                        item {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.LocalFireDepartment, null,
-                                    tint = Color(0xFFFF5722), modifier = Modifier.size(24.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("热门食谱", style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold)
-                            }
-                        }
                         items(hotRecipes) { recipe ->
-                            RecipeCard(recipe = recipe, onClick = {
-                                recipe.id?.let { onNavigateToDetail(it) }
-                            })
+                            RecipeCard(
+                                recipe = recipe, 
+                                onClick = { recipe.id?.let { onNavigateToDetail(it) } },
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
                         }
+                        item { Spacer(modifier = Modifier.height(80.dp)) }
                     }
                 }
             }
