@@ -14,6 +14,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
+/**
+ * 认证ViewModel — 管理登录、注册、登出流程
+ *
+ * 认证流程：
+ *   用户名+密码 → 后端 API → 返回 JWT Token + 用户信息 → 存储到 TokenManager
+ *   注册成功后自动登录（后端直接返回 Token）
+ *
+ * 状态机：
+ *   Idle → Loading → Success / Error
+ */
 class AuthViewModel : ViewModel() {
     private val api = RetrofitClient.api
 
@@ -137,6 +147,10 @@ class AuthViewModel : ViewModel() {
     }
 }
 
+/**
+ * 认证状态密封类
+ * 用于UI层根据状态展示加载中/成功/错误等不同界面
+ */
 sealed class AuthState {
     data object Idle : AuthState()
     data object Loading : AuthState()

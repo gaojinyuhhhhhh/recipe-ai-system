@@ -9,7 +9,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /**
- * AI推荐的食谱数据
+ * AI推荐的食谱摘要数据
+ * 用于展示推荐列表，包含菜名、简介、主要食材、时间等摘要信息
+ * 点击后进入 RecipeDetailFromRecommendScreen 生成完整食谱
  */
 data class SuggestedRecipe(
     val name: String = "",
@@ -28,6 +30,17 @@ data class SuggestedRecipe(
     }
 }
 
+/**
+ * AI智能推荐ViewModel
+ *
+ * 职责范围：
+ * - 根据用户食材库中的食材，调用AI推荐合适的食谱
+ * - 支持传入用户偏好（如“清淡”“快手菜”等）细化推荐结果
+ * - 解析AI返回的非结构化数据为 [SuggestedRecipe] 列表
+ *
+ * 数据流：
+ *   食材列表 + 用户偏好 → suggestByIngredients API → 解析 Map → SuggestedRecipe 列表
+ */
 class RecommendViewModel : ViewModel() {
     private val api = RetrofitClient.api
 
@@ -51,7 +64,9 @@ class RecommendViewModel : ViewModel() {
     fun clearError() { _error.value = null }
 
     /**
-     * AI基于食材推荐食谱
+     * 基于食材列表调用AI推荐食谱
+     * @param ingredients 用户食材库中的食材名称列表
+     * @param preferences 可选的用户偏好，如“清淡、不要辣、快手菜”等
      */
     fun suggestByIngredients(ingredients: List<String>, preferences: String? = null) {
         if (ingredients.isEmpty()) {
@@ -96,7 +111,9 @@ class RecommendViewModel : ViewModel() {
     }
 
     /**
-     * 解析AI返回的食谱数据
+     * 解析AI返回的食谱推荐数据
+     * 后端返回格式: { "recipes": [ {"name":..., "cookingTime":...}, ... ] }
+     * 注意 cookingTime 可能是 Number 或 String，需要兼容处理
      */
     @Suppress("UNCHECKED_CAST")
     private fun parseRecipes(data: Map<String, Any?>): List<SuggestedRecipe> {

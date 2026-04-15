@@ -13,10 +13,23 @@ import com.recipe.data.model.SuggestedPreferencesResponse
 import com.recipe.data.model.UserAiProfile
 import retrofit2.http.*
 
+/**
+ * 后端 REST API 接口定义
+ *
+ * 接口分区：
+ * 1. 用户认证 — 注册、登录、个人信息、偏好设置、密码修改
+ * 2. 食材管理 — 增删改查、批量添加、过期提醒、分组查询
+ * 3. 食谱社区 — CRUD、搜索、收藏、评论、克隆、下架
+ * 4. 采购清单 — 增删、批量完成、同步到食材库、食谱导入
+ * 5. AI功能 — 食谱生成、对话、食材识别、推荐、食材信息推断
+ * 6. 用户行为与AI学习 — 用户画像、偏好分析、智能偏好建议
+ *
+ * 所有接口返回统一格式：ApiResponse<T>{ success, message, data }
+ */
 interface ApiService {
     companion object {
-        const val BASE_URL = "http://10.0.2.2:8080/api/"  // 模拟器使用
-       //const val BASE_URL = "http://192.168.185.95:8080/api/"  // 真机使用 - WiFi IP
+        //const val BASE_URL = "http://10.0.2.2:8080/api/"  // 模拟器使用
+       const val BASE_URL = "http://192.168.185.95:8080/api/"  // 真机使用 - WiFi IP
     }
 
     // ==================== 用户认证 ====================
@@ -168,7 +181,7 @@ interface ApiService {
     @DELETE("shopping/completed/clear")
     suspend fun clearCompletedItems(): ApiResponse<Any>
 
-    // ==================== 智能推荐 ====================
+    // ==================== 智能推荐（基于用户行为 + 食材状态） ====================
 
     @GET("recommend")
     suspend fun getRecommendations(@Query("limit") limit: Int = 20): ApiResponse<Any>

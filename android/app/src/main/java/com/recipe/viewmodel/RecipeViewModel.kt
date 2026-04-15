@@ -21,6 +21,23 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
+/**
+ * 食谱模块核心ViewModel
+ *
+ * 职责范围：
+ * 1. 社区食谱 — 热门浏览、搜索、详情、收藏、评论、创建/编辑/删除
+ * 2. 本地食谱 — CRUD、上传到社区、从社区下载到本地、下架
+ * 3. AI辅助 — 根据菜名生成完整食谱信息
+ *
+ * 数据流：
+ * - 社区数据通过 [api]（Retrofit）请求后端 REST 接口
+ * - 本地数据通过 [dao]（Room）持久化到 SQLite
+ * - 上传/下载操作会同时更新两端状态
+ *
+ * syncStatus 状态机：
+ *   LOCAL → UPLOADED（上传成功后回填 serverId）
+ *   DOWNLOADED（从社区下载到本地时创建）
+ */
 class RecipeViewModel(application: Application) : AndroidViewModel(application) {
     private val api = RetrofitClient.api
     private val gson = Gson()
@@ -286,7 +303,8 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
 
                 val response = api.createRecipe(request)
                 if (response.success) {
-                    // 更新本地同步状态
+                    // 上传成功后从响应中提取云端ID，回填到本地记录
+                    // Gson将数字默认反序列化为Double，需要转Long
                     val serverData = response.data
                     val serverId = try {
                         val json = gson.toJson(serverData)
@@ -337,7 +355,7 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
                 val detail = gson.fromJson(json, RecipeDetail::class.java)
                 val recipe = detail.recipe
 
-                // 获取作者信息
+                // 获取社区食谱的原始作者名，下载到本地后用于展示来源
                 var authorName: String? = null
                 try {
                     val authorResponse = api.getRecipeAuthor(recipeId)
@@ -374,6 +392,7 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
 
     // ==================== 社区食谱操作 ====================
 
+    /** 加载社区热门食谱（按热度排序，最多20条） */
     fun loadHotRecipes() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -392,6 +411,7 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** 搜索社区食谱，支持关键词、菜系、难度多维度筛选 */
     fun searchRecipes(keyword: String, cuisine: String? = null, difficulty: String? = null) {
         _searchQuery.value = keyword
         if (keyword.isBlank() && cuisine == null && difficulty == null) {
@@ -461,6 +481,7 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** 切换收藏状态（收藏/取消收藏），并同步更新详情页的收藏标志 */
     fun toggleFavorite(recipeId: Long) {
         viewModelScope.launch {
             try {
@@ -488,6 +509,7 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** 发表评论，成功后自动刷新详情和评论列表 */
     fun addComment(recipeId: Long, content: String, rating: Int?) {
         if (content.isBlank()) {
             _toastMessage.value = "请输入评论内容"
@@ -509,6 +531,10 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /**
+     * 创建社区食谱（直接发布到云端）
+     * 注意：ingredients/steps/tags 需要序列化为 JSON 字符串后传给后端
+     */
     fun createRecipe(
         title: String,
         description: String?,
@@ -567,6 +593,7 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
     fun resetCreateSuccess() { _createSuccess.value = false }
     fun resetEditSuccess() { _editSuccess.value = false }
 
+    /** 编辑云端社区食谱 */
     fun updateRecipe(
         recipeId: Long,
         title: String,
@@ -614,6 +641,7 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** 加载当前用户发布的云端食谱（个人中心 - 我的食谱） */
     fun loadMyRecipes() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -630,6 +658,7 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** 加载当前用户的收藏列表 */
     fun loadMyFavorites() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -646,6 +675,7 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** 加载当前用户的评论列表 */
     fun loadMyComments() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -676,6 +706,7 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** 删除云端食谱，成功后刷新热门、我的食谱、收藏列表 */
     fun deleteRecipe(recipeId: Long) {
         viewModelScope.launch {
             try {
@@ -695,6 +726,7 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
 
     // ==================== 工具方法 ====================
 
+    /** 将 JSON 字符串反序列化为食材列表（用于UI展示） */
     fun parseIngredients(json: String): List<RecipeIngredient> {
         return try {
             val type = object : TypeToken<List<RecipeIngredient>>() {}.type
@@ -702,6 +734,7 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
         } catch (e: Exception) { emptyList() }
     }
 
+    /** 将 JSON 字符串反序列化为步骤列表（用于UI展示） */
     fun parseSteps(json: String): List<RecipeStep> {
         return try {
             val type = object : TypeToken<List<RecipeStep>>() {}.type

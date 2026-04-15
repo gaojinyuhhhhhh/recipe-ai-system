@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.recipe.R
 import com.recipe.data.local.LocalRecipeEntity
@@ -68,39 +69,42 @@ fun formatShoppingDate(dateStr: String?): String {
 
 // ==================== 食材类别图标 ====================
 
+/**
+ * 食材类别 Emoji 和颜色的统一映射（食材卡片 + 分组头部共用）
+ * 使用 Emoji 替代 Material Icon，更直观且不会出现图标风格不统一的问题
+ */
+fun getCategoryEmojiAndColor(category: String?): Pair<String, Color> {
+    return when (category) {
+        "肉类"  -> "🥩" to Color(0xFFE57373)   // 柔和红
+        "海鲜"  -> "🦐" to Color(0xFF64B5F6)   // 柔和蓝
+        "蔬菜类" -> "🥦" to Color(0xFF81C784)   // 柔和绿
+        "水果"  -> "🍎" to Color(0xFFFFB74D)   // 柔和橙
+        "蛋奶"  -> "🥚" to Color(0xFFFFF176)   // 柔和黄
+        "豆制品" -> "🥜" to Color(0xFFA1887F)   // 柔和棕
+        "调味类" -> "🌶\uFE0F" to Color(0xFFBA68C8)   // 柔和紫
+        "粮油"  -> "🌾" to Color(0xFFD4E157)   // 柔和黄绿
+        "干货"  -> "🍄" to Color(0xFF90A4AE)   // 柔和灰蓝
+        "饮品"  -> "☕" to Color(0xFF4FC3F7)   // 柔和天蓝
+        else   -> "🍽\uFE0F" to Color(0xFFBDBDBD)   // 默认灰
+    }
+}
+
 @Composable
 fun IngredientCategoryIcon(
     category: String?,
     modifier: Modifier = Modifier
 ) {
-    // 类别到图标和颜色的映射
-    val categoryConfig = when (category) {
-        "肉类" -> Icons.Default.Restaurant to Color(0xFFE57373)      // 柔和红
-        "海鲜" -> Icons.Default.Water to Color(0xFF64B5F6)          // 柔和蓝
-        "蔬菜类" -> Icons.Default.Spa to Color(0xFF81C784)          // 柔和绿
-        "水果" -> Icons.Default.ShoppingBasket to Color(0xFFFFB74D) // 柔和橙
-        "蛋奶" -> Icons.Default.Egg to Color(0xFFFFF176)            // 柔和黄
-        "豆制品" -> Icons.Default.Grain to Color(0xFFA1887F)        // 柔和棕
-        "调味类" -> Icons.Default.LocalDining to Color(0xFFBA68C8)  // 柔和紫
-        "粮油" -> Icons.Default.Grass to Color(0xFFD4E157)          // 柔和黄绿
-        "干货" -> Icons.Default.Inventory to Color(0xFF90A4AE)      // 柔和灰蓝
-        "饮品" -> Icons.Default.LocalCafe to Color(0xFF4FC3F7)      // 柔和天蓝
-        else -> Icons.Default.FoodBank to Color(0xFFBDBDBD)         // 默认灰
-    }
-    
-    val (icon, color) = categoryConfig
-    
+    val (emoji, color) = getCategoryEmojiAndColor(category)
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .background(color.copy(alpha = 0.15f)),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = category,
-            modifier = Modifier.size(28.dp),
-            tint = color
+        Text(
+            text = emoji,
+            fontSize = 26.sp
         )
     }
 }
@@ -583,17 +587,16 @@ fun CategoryHeader(
     count: Int,
     modifier: Modifier = Modifier
 ) {
-    val (color, icon) = getCategoryStyle(category)
+    val (emoji, color) = getCategoryEmojiAndColor(category)
 
     Row(
         modifier = modifier
             .fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            icon, null,
-            tint = color,
-            modifier = Modifier.size(20.dp)
+        Text(
+            text = emoji,
+            fontSize = 18.sp
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
@@ -619,7 +622,7 @@ fun ExpandableCategoryHeader(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val (color, icon) = getCategoryStyle(category)
+    val (emoji, color) = getCategoryEmojiAndColor(category)
 
     Card(
         modifier = modifier
@@ -627,7 +630,7 @@ fun ExpandableCategoryHeader(
             .clickable { onToggle() },
         colors = CardDefaults.cardColors(
             containerColor = if (count > 0)
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                color.copy(alpha = 0.08f)
             else
                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
         ),
@@ -639,11 +642,9 @@ fun ExpandableCategoryHeader(
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (count > 0) color else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp)
+            Text(
+                text = emoji,
+                fontSize = 20.sp
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
@@ -670,36 +671,7 @@ fun ExpandableCategoryHeader(
     }
 }
 
-@Composable
-private fun getCategoryStyle(category: String): Pair<Color, androidx.compose.ui.graphics.vector.ImageVector> {
-    val color = when (category) {
-        "肉类" -> Color(0xFFE53935)
-        "海鲜" -> Color(0xFF1E88E5)
-        "蔬菜类" -> Color(0xFF43A047)
-        "水果" -> Color(0xFFFB8C00)
-        "蛋奶" -> Color(0xFFFDD835)
-        "豆制品" -> Color(0xFF8E24AA)
-        "调味类" -> Color(0xFF6D4C41)
-        "粮油" -> Color(0xFFFFA726)
-        "干货" -> Color(0xFF78909C)
-        "饮品" -> Color(0xFF00BCD4)
-        else -> Color(0xFF607D8B)
-    }
-    val icon = when (category) {
-        "肉类" -> Icons.Default.Restaurant
-        "海鲜" -> Icons.Default.Water
-        "蔬菜类" -> Icons.Default.Spa
-        "水果" -> Icons.Default.ShoppingBasket
-        "蛋奶" -> Icons.Default.Egg
-        "豆制品" -> Icons.Default.Grain
-        "调味类" -> Icons.Default.LocalDining
-        "粮油" -> Icons.Default.Grass
-        "干货" -> Icons.Default.Inventory
-        "饮品" -> Icons.Default.LocalCafe
-        else -> Icons.Default.Category
-    }
-    return color to icon
-}
+// getCategoryStyle 已废弃，统一使用 getCategoryEmojiAndColor() 替代
 
 @Composable
 fun ShoppingItemCard(

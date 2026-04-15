@@ -62,7 +62,7 @@ fun LoginScreen(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "智材识厨",
+            text = "识材智厨",
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Bold

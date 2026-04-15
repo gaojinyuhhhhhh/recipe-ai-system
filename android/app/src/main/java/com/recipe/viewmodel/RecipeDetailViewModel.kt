@@ -16,6 +16,8 @@ import retrofit2.HttpException
 
 /**
  * AI生成的完整食谱详情
+ * 用于展示AI推荐食谱的完整信息，包含食材、步骤、营养、小贴士等
+ * 注意：ingredients 和 steps 都是格式化字符串列表，非结构化对象
  */
 data class GeneratedRecipeDetail(
     val name: String = "",
@@ -37,11 +39,32 @@ data class GeneratedRecipeDetail(
     }
 }
 
+/**
+ * AI食谱详情页ViewModel
+ *
+ * 职责范围：
+ * 1. 调用后端AI接口生成完整食谱
+ * 2. 将生成的食谱导入到本地食谱（Room数据库）
+ * 3. 将生成的食谱发布到食谱社区（云端）
+ * 4. 通过标题查询本地数据库防止重复导入/上传
+ *
+ * 数据流：
+ * - AI生成: 后端 generateRecipe API → 解析为 GeneratedRecipeDetail
+ * - 导入本地: GeneratedRecipeDetail → 解析食材字符串 → LocalRecipeEntity → Room
+ * - 发布社区: GeneratedRecipeDetail → 解析+序列化为JSON → saveGeneratedRecipe API
+ *
+ * 重复防护：
+ * - 生成食谱后自动 [checkExistingStatus] 检查本地是否已存在同名食谱
+ * - 导入/上传前再次检查防止并发操作
+ *
+ * 注意：每次导航到该页面会创建新实例，因此通过数据库查询恢复状态而非内存缓存
+ */
 class RecipeDetailViewModel(private val application: Application) : androidx.lifecycle.ViewModel() {
     private val api = RetrofitClient.api
     private val gson = Gson()
     private val dao by lazy { AppDatabase.getInstance(application).localRecipeDao() }
 
+    /** ViewModelProvider.Factory 工厂，用于在 Compose 中创建需要 Application 参数的 ViewModel */
     companion object {
         fun createFactory(application: Application): androidx.lifecycle.ViewModelProvider.Factory {
             return object : androidx.lifecycle.ViewModelProvider.Factory {
@@ -63,10 +86,10 @@ class RecipeDetailViewModel(private val application: Application) : androidx.lif
     val error: StateFlow<String?> = _error
 
     private val _isSaved = MutableStateFlow(false)
-    val isSaved: StateFlow<Boolean> = _isSaved
+    val isSaved: StateFlow<Boolean> = _isSaved      // 是否已发布到社区
 
     private val _isImported = MutableStateFlow(false)
-    val isImported: StateFlow<Boolean> = _isImported
+    val isImported: StateFlow<Boolean> = _isImported  // 是否已导入到本地
 
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage
@@ -83,6 +106,7 @@ class RecipeDetailViewModel(private val application: Application) : androidx.lif
                 _isLoading.value = true
                 _error.value = null
                 _isSaved.value = false
+                _isImported.value = false
 
                 val request = mapOf<String, Any?>(
                     "availableIngredients" to mainIngredients,
@@ -96,6 +120,9 @@ class RecipeDetailViewModel(private val application: Application) : androidx.lif
                 if (response.success) {
                     val recipeDetail = parseRecipeDetail(response.data)
                     _recipe.value = recipeDetail.copy(name = recipeName)
+
+                    // 检查本地是否已导入过相同标题的食谱
+                    checkExistingStatus(recipeName)
                 } else {
                     _error.value = response.message ?: "生成食谱失败"
                 }
@@ -109,12 +136,40 @@ class RecipeDetailViewModel(private val application: Application) : androidx.lif
     }
 
     /**
+     * 检查本地是否已存在同名食谱，设置初始状态
+     */
+    private suspend fun checkExistingStatus(recipeName: String) {
+        try {
+            val userId = TokenManager.getUserId()
+            if (userId == 0L) return
+
+            // 检查是否已导入到本地
+            val localExisting = dao.getByTitle(userId, recipeName)
+            if (localExisting != null) {
+                _isImported.value = true
+            }
+
+            // 检查是否已上传到社区（本地有记录syncStatus=UPLOADED）
+            val uploadedExisting = dao.getUploadedByTitle(userId, recipeName)
+            if (uploadedExisting != null) {
+                _isSaved.value = true
+            }
+        } catch (e: Exception) {
+            Log.e("RecipeDetailVM", "检查已有食谱状态失败", e)
+        }
+    }
+
+    /**
      * 保存生成的食谱到个人食谱（云端）
      * 注意：currentRecipe.ingredients 是格式化字符串列表如 ["鸭肉 500g", "番茄 300g"]
      * 需要解析出 name, quantity, unit 分别存储
      */
     fun saveRecipe() {
         val currentRecipe = _recipe.value ?: return
+        if (_isSaved.value) {
+            _toastMessage.value = "该食谱已发布到社区"
+            return
+        }
 
         viewModelScope.launch {
             try {
@@ -194,6 +249,14 @@ class RecipeDetailViewModel(private val application: Application) : androidx.lif
                     return@launch
                 }
 
+                // 检查本地是否已存在同名食谱
+                val existing = dao.getByTitle(userId, currentRecipe.name)
+                if (existing != null) {
+                    _isImported.value = true
+                    _toastMessage.value = "该食谱已在本地食谱中"
+                    return@launch
+                }
+
                 // 解析食材字符串，如 "鸭肉 500g" -> name="鸭肉", quantity=500, unit="g"
                 val ingredientsList = currentRecipe.ingredients.map { ingredientStr ->
                     parseIngredientString(ingredientStr)
@@ -262,7 +325,11 @@ class RecipeDetailViewModel(private val application: Application) : androidx.lif
 
     /**
      * 解析AI返回的完整食谱数据
-     * 后端返回格式: ingredients是对象列表 [{"name":"...", "quantity":...}], steps也是对象列表
+     * 后端返回格式不统一，需要兼容多种情况：
+     * - ingredients: 可能是字符串列表或对象列表 [{"name":"...", "quantity":...}]
+     * - steps: 可能是字符串列表或对象列表 [{"content":"..."}]
+     * - nutrition: 可能是字符串或对象 {"calories":"...", ...}
+     * - 数值类型: 可能是 Number 或 String
      */
     @Suppress("UNCHECKED_CAST")
     private fun parseRecipeDetail(data: Any?): GeneratedRecipeDetail {

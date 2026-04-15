@@ -104,7 +104,9 @@ fun ShoppingScreen(
         floatingActionButton = {
             if (!showCompletedTab) {
                 FloatingActionButton(
-                    onClick = { showAddDialog = true }
+                    onClick = { showAddDialog = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 ) {
                     Icon(Icons.Default.Add, "添加采购项")
                 }

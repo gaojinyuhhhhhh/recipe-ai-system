@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.recipe.R
@@ -62,6 +63,7 @@ fun IngredientListScreen(
     var viewMode by remember { mutableStateOf(IngredientViewMode.BY_FRESHNESS) }
 
     val context = LocalContext.current
+    val error by viewModel.error.collectAsState()
 
     // Toast 提示
     LaunchedEffect(toastMessage) {
@@ -71,17 +73,21 @@ fun IngredientListScreen(
         }
     }
 
+    // 初始加载（确保页面首次显示时一定会加载数据）
+    LaunchedEffect(Unit) {
+        viewModel.loadIngredients()
+        viewModel.loadAlerts()
+    }
+
     // 使用 lifecycleCurrentState 作为 key，确保每次页面可见时重新加载数据
     val lifecycleOwner = LocalLifecycleOwner.current
     
-    // 监听页面可见状态，每次进入页面时刷新数据
+    // 监听页面可见状态，每次从其他页面返回时刷新数据
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.loadIngredients()
                 viewModel.loadAlerts()
-                viewModel.loadIngredientsByFreshness()
-                viewModel.loadIngredientsByCategory()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -90,7 +96,7 @@ fun IngredientListScreen(
         }
     }
 
-    // 下拉刷新状态
+    // 下拉刷新状态（刷新所有数据源）
     val pullRefreshState = rememberPullRefreshState(
         refreshing = loading,
         onRefresh = {
@@ -172,6 +178,26 @@ fun IngredientListScreen(
                     loading && ingredients.isEmpty() -> {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator()
+                        }
+                    }
+                    !loading && error != null && ingredients.isEmpty() -> {
+                        // 加载出错状态
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = error ?: "加载失败",
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(onClick = {
+                                    viewModel.clearError()
+                                    viewModel.loadIngredients()
+                                    viewModel.loadAlerts()
+                                }) {
+                                    Text("重试")
+                                }
+                            }
                         }
                     }
                     ingredients.isEmpty() -> {
@@ -388,31 +414,22 @@ fun CategoryGroupedList(
     onConsume: (Ingredient) -> Unit,
     onDelete: (Ingredient) -> Unit
 ) {
-    // 类别顺序和图标映射（标准10大类别）
+    // 类别顺序和 Emoji 映射（标准10大类别，与 IngredientCategoryIcon 共用同一套 Emoji）
     val categoryOrder = listOf(
-        "肉类" to Icons.Default.Restaurant,
-        "海鲜" to Icons.Default.Water,
-        "蔬菜类" to Icons.Default.Spa,
-        "水果" to Icons.Default.ShoppingBasket,
-        "蛋奶" to Icons.Default.Egg,
-        "豆制品" to Icons.Default.Grain,
-        "调味类" to Icons.Default.LocalDining,
-        "粮油" to Icons.Default.Grass,
-        "干货" to Icons.Default.Inventory,
-        "饮品" to Icons.Default.LocalCafe
+        "肉类", "海鲜", "蔬菜类", "水果", "蛋奶",
+        "豆制品", "调味类", "粮油", "干货", "饮品"
     )
 
-    // 获取图标映射
-    fun getCategoryIcon(categoryName: String): androidx.compose.ui.graphics.vector.ImageVector {
-        return categoryOrder.find { it.first == categoryName }?.second 
-            ?: Icons.Default.Folder  // 默认图标
+    // 获取类别 Emoji（复用 RecipeCards.kt 中的统一映射）
+    fun getCategoryEmoji(categoryName: String): String {
+        return com.recipe.ui.components.getCategoryEmojiAndColor(categoryName).first
     }
 
     // 记录每个类别的展开状态
     val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
     // 默认展开有食材的类别
     LaunchedEffect(groupedIngredients) {
-        categoryOrder.forEach { (categoryName, _) ->
+        categoryOrder.forEach { categoryName ->
             val ingredients = groupedIngredients[categoryName] ?: emptyList()
             if (expandedCategories[categoryName] == null) {
                 expandedCategories[categoryName] = ingredients.isNotEmpty()
@@ -428,9 +445,10 @@ fun CategoryGroupedList(
         contentPadding = PaddingValues(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
-        // 先显示标准9大类别（按预设顺序），包括空的类别
-        categoryOrder.forEach { (categoryName, icon) ->
+        // 先显示标准10大类别（按预设顺序），包括空的类别
+        categoryOrder.forEach { categoryName ->
             val ingredients = groupedIngredients[categoryName] ?: emptyList()
+            val emoji = getCategoryEmoji(categoryName)
             val isExpanded = expandedCategories[categoryName] ?: true
             
             // 类别头部（可点击展开/折叠）
@@ -438,7 +456,7 @@ fun CategoryGroupedList(
                 CategorySectionHeader(
                     title = categoryName,
                     count = ingredients.size,
-                    icon = icon,
+                    emoji = emoji,
                     isExpanded = isExpanded,
                     onToggle = { expandedCategories[categoryName] = !isExpanded }
                 )
@@ -458,8 +476,8 @@ fun CategoryGroupedList(
             }
         }
 
-        // 显示其他非标准类别（如数据库中有但不在标准9类中的）
-        val standardCategories = categoryOrder.map { it.first } + "未分类"
+        // 显示其他非标准类别（如数据库中有但不在标准10类中的）
+        val standardCategories = categoryOrder + "未分类"
         groupedIngredients.forEach { (categoryName, ingredients) ->
             if (categoryName !in standardCategories && ingredients.isNotEmpty()) {
                 val isExpanded = expandedCategories[categoryName] ?: true
@@ -468,7 +486,7 @@ fun CategoryGroupedList(
                     CategorySectionHeader(
                         title = categoryName,
                         count = ingredients.size,
-                        icon = getCategoryIcon(categoryName),
+                        emoji = getCategoryEmoji(categoryName),
                         isExpanded = isExpanded,
                         onToggle = { expandedCategories[categoryName] = !isExpanded }
                     )
@@ -496,7 +514,7 @@ fun CategoryGroupedList(
             CategorySectionHeader(
                 title = "未分类",
                 count = uncategorized.size,
-                icon = Icons.Default.HelpOutline,
+                emoji = "❓",
                 isExpanded = isUncategorizedExpanded,
                 onToggle = { expandedCategories["未分类"] = !isUncategorizedExpanded }
             )
@@ -526,10 +544,13 @@ fun CategoryGroupedList(
 fun CategorySectionHeader(
     title: String,
     count: Int,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    emoji: String,
     isExpanded: Boolean,
     onToggle: () -> Unit
 ) {
+    // 获取该类别对应的主题色
+    val (_, themeColor) = com.recipe.ui.components.getCategoryEmojiAndColor(title)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -537,7 +558,7 @@ fun CategorySectionHeader(
             .clickable { onToggle() },
         colors = CardDefaults.cardColors(
             containerColor = if (count > 0) 
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                themeColor.copy(alpha = 0.08f)
             else 
                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         ),
@@ -549,14 +570,10 @@ fun CategorySectionHeader(
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (count > 0) 
-                    MaterialTheme.colorScheme.primary 
-                else 
-                    MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp)
+            // Emoji 图标
+            Text(
+                text = emoji,
+                fontSize = 20.sp
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
@@ -573,7 +590,7 @@ fun CategorySectionHeader(
                 text = "($count)",
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (count > 0) 
-                    MaterialTheme.colorScheme.primary 
+                    themeColor
                 else 
                     MaterialTheme.colorScheme.onSurfaceVariant
             )

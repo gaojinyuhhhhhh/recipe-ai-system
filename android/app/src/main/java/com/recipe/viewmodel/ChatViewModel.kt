@@ -21,6 +21,19 @@ data class ChatMessage(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+/**
+ * AI对话助手ViewModel
+ *
+ * 职责范围：
+ * 1. 与AI助手对话 — 发送消息、接收回复、展示建议问题
+ * 2. 会话管理 — 新建/加载/删除/清空历史会话
+ * 3. 上下文维护 — 保留最近10轮对话作为AI上下文，实现连续对话
+ *
+ * 存储机制：
+ * - 会话历史通过 [ChatHistoryManager] 存储在本地 SharedPreferences
+ * - 每次AI回复后自动保存当前会话
+ * - 会话标题取第一条用户消息的前20个字符
+ */
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val api = RetrofitClient.api
     private val historyManager = ChatHistoryManager(application)
@@ -38,10 +51,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _sessions = MutableStateFlow<List<ChatSession>>(emptyList())
     val sessions: StateFlow<List<ChatSession>> = _sessions
 
-    // 当前会话ID（null表示新对话）
+    // 当前会话ID（null表示新对话，使用时间戳作为ID）
     private var currentSessionId: String? = null
 
-    // 对话上下文（保留最近10轮）
+    // 对话上下文（保留最近10轮 = 20条消息，供 AI 实现连续对话理解）
     private val contextHistory = mutableListOf<String>()
 
     init {
@@ -97,7 +110,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * 发送消息
+     * 发送消息给AI助手
+     * 流程：添加用户消息到列表 → 带上上下文调用后端 → 解析回复+建议问题 → 更新上下文 → 自动保存
      */
     fun sendMessage(message: String) {
         if (message.isBlank()) return
@@ -193,6 +207,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         loadSessions()
     }
 
+    /** 解析AI回复内容，容错处理为默认提示 */
     @Suppress("UNCHECKED_CAST")
     private fun parseReply(data: Any?): String {
         return when (data) {
@@ -201,6 +216,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** 解析AI返回的建议跟进问题列表 */
     @Suppress("UNCHECKED_CAST")
     private fun parseSuggestions(data: Any?): List<String> {
         return try {

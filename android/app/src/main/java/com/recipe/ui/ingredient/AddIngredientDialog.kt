@@ -41,8 +41,8 @@ fun AddIngredientDialog(
     // 批量模式字段
     var batchText by remember { mutableStateOf("") }
 
-    // 标准9大类别，与食材库分类展示保持一致
-    val categoryOptions = listOf("肉类", "海鲜", "蔬菜类", "水果", "蛋奶", "豆制品", "调味类", "粮油", "干货")
+    // 标准10大类别，与食材库分类展示保持一致
+    val categoryOptions = listOf("肉类", "海鲜", "蔬菜类", "水果", "蛋奶", "豆制品", "调味类", "粮油", "干货", "饮品")
     val unitOptions = listOf("个", "斤", "克", "两", "根", "颗", "袋", "瓶", "盒")
     val storageOptions = listOf("常温", "冷藏", "冷冻")
 

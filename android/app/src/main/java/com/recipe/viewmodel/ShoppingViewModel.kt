@@ -12,8 +12,22 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * 购物清单ViewModel
+ *
+ * 职责范围：
+ * 1. 采购项CRUD — 添加、删除、单个/批量勾选完成
+ * 2. AI智能入库 — 采购完成后，AI推断食材保质期/存储方式，用户确认后添加到食材库
+ * 3. 批量操作 — 全选/批量完成/批量同步到食材库
+ * 4. 食谱导入 — 从食谱一键导入缺少的食材到采购列表
+ *
+ * 采购流程：
+ *   添加采购项 → 勾选完成 → AI推断食材信息 → 用户确认/修改 → 添加到食材库
+ */
 class ShoppingViewModel : ViewModel() {
     private val api = RetrofitClient.api
+
+    // ==================== 状态定义 ====================
 
     // 待购买列表
     private val _pendingItems = MutableStateFlow<List<ShoppingItem>>(emptyList())
@@ -48,7 +62,9 @@ class ShoppingViewModel : ViewModel() {
     fun clearToast() { _toastMessage.value = null }
 
     /**
-     * 开始处理单个采购项（AI推断→确认→入库）
+     * 开始处理单个采购项（AI推断→用户确认→入库）
+     * 调用AI接口推断食材的保质期、存储方式等信息，
+     * 失败时使用默认值填充，保证流程不中断
      */
     fun startProcessingItem(item: ShoppingItem) {
         _currentProcessingItem.value = item
@@ -91,7 +107,8 @@ class ShoppingViewModel : ViewModel() {
 
     /**
      * 确认并添加到食材库
-     * 使用用户修改后的实际购买数量
+     * 使用用户修改后的实际购买数量和AI推断的保质期/存储信息，
+     * 调用后端接口同时完成采购项并创建食材记录
      */
     fun confirmAndAddToIngredients(info: InferredIngredientInfo) {
         val item = _currentProcessingItem.value ?: return
@@ -336,9 +353,7 @@ class ShoppingViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 从食谱导入缺少的食材
-     */
+    /** 从食谱一键导入缺少的食材到采购列表（自动比对食材库已有食材） */
     fun importFromRecipe(recipeId: Long) {
         viewModelScope.launch {
             try {

@@ -9,11 +9,28 @@ import com.recipe.data.model.Ingredient
 import com.recipe.data.model.RecognizedIngredient
 import com.recipe.data.remote.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
+/**
+ * 食材管理ViewModel
+ *
+ * 职责范围：
+ * 1. 食材CRUD — 手动添加、批量添加、编辑、删除、消耗
+ * 2. 食材分组 — 按新鲜度（即将过期/新鲜/长期）和类别（10大类）分组
+ * 3. 过期提醒 — 加载临期/过期食材提醒
+ * 4. AI拍照识别 — 图片识别食材并批量入库
+ *
+ * 数据流：
+ * - 所有数据通过 [api] 与后端交互（食材存储在服务端数据库）
+ * - [ingredientsByFreshness] 和 [ingredientsByCategory] 由 [_ingredients] 自动派生，
+ *   使用 StateFlow.map 实现数据变化时自动重新分组
+ */
 class IngredientViewModel : ViewModel() {
     private val api = RetrofitClient.api
 
@@ -36,13 +53,33 @@ class IngredientViewModel : ViewModel() {
     private val _recognizedIngredients = MutableStateFlow<List<RecognizedIngredient>>(emptyList())
     val recognizedIngredients: StateFlow<List<RecognizedIngredient>> = _recognizedIngredients
 
-    // 按新鲜度分组的食材
-    private val _ingredientsByFreshness = MutableStateFlow<Map<String, List<Ingredient>>>(emptyMap())
-    val ingredientsByFreshness: StateFlow<Map<String, List<Ingredient>>> = _ingredientsByFreshness
+    /**
+     * 类别名称映射表（兼容旧数据，与后端保持一致）
+     * 早期数据可能使用“蔬菜”“调味品”等旧名称，需要映射为当前标准名称
+     */
+    private val categoryMapping = mapOf(
+        "蔬菜" to "蔬菜类",
+        "调味品" to "调味类",
+        "主食" to "粮油",
+        "其他" to "未分类",
+        "肉蛋类" to "肉类"
+    )
 
-    // 按类别分组的食材
-    private val _ingredientsByCategory = MutableStateFlow<Map<String, List<Ingredient>>>(emptyMap())
-    val ingredientsByCategory: StateFlow<Map<String, List<Ingredient>>> = _ingredientsByCategory
+    /**
+     * 按新鲜度分组 — 由 _ingredients 自动派生，食材列表变化时自动重新分组
+     * 分组规则：expiringSoon(≤3天) / fresh(4-7天) / longTerm(>7天)
+     */
+    val ingredientsByFreshness: StateFlow<Map<String, List<Ingredient>>> = _ingredients
+        .map { list -> groupByFreshness(list) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    /**
+     * 按类别分组 — 由 _ingredients 自动派生，食材列表变化时自动重新分组
+     * 类别名称经过 [categoryMapping] 统一后按字母顺序排序
+     */
+    val ingredientsByCategory: StateFlow<Map<String, List<Ingredient>>> = _ingredients
+        .map { list -> groupByCategory(list) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     fun clearToast() { _toastMessage.value = null }
     fun clearError() { _error.value = null }
@@ -59,6 +96,7 @@ class IngredientViewModel : ViewModel() {
                 Log.d("IngredientVM", "Response: success=${response.success}, data size=${response.data?.size}")
                 if (response.success) {
                     _ingredients.value = response.data ?: emptyList()
+                    _error.value = null  // 清除之前的错误状态
                     Log.d("IngredientVM", "Loaded ${_ingredients.value.size} ingredients")
                 } else {
                     _error.value = response.message
@@ -87,35 +125,32 @@ class IngredientViewModel : ViewModel() {
         }
     }
 
-    // 加载按新鲜度分组的食材
-    fun loadIngredientsByFreshness() {
-        viewModelScope.launch {
-            try {
-                val response = api.getIngredientsByFreshness()
-                if (response.success) {
-                    _ingredientsByFreshness.value = response.data ?: emptyMap()
-                }
-            } catch (e: Exception) {
-                Log.e("IngredientVM", "加载新鲜度分组失败", e)
+    // 本地按新鲜度分组（与后端逻辑一致）
+    private fun groupByFreshness(ingredients: List<Ingredient>): Map<String, List<Ingredient>> {
+        val grouped = ingredients.groupBy { ingredient ->
+            val remaining = ingredient.getRemainingDays() ?: Int.MAX_VALUE
+            when {
+                remaining <= 3 -> "expiringSoon"  // 3天内过期
+                remaining <= 7 -> "fresh"          // 4-7天
+                else -> "longTerm"                 // 7天以上
             }
         }
+        return mapOf(
+            "expiringSoon" to (grouped["expiringSoon"] ?: emptyList()),
+            "fresh" to (grouped["fresh"] ?: emptyList()),
+            "longTerm" to (grouped["longTerm"] ?: emptyList())
+        )
     }
 
-    // 加载按类别分组的食材
-    fun loadIngredientsByCategory() {
-        viewModelScope.launch {
-            try {
-                val response = api.getIngredientsByCategory()
-                if (response.success) {
-                    _ingredientsByCategory.value = response.data ?: emptyMap()
-                }
-            } catch (e: Exception) {
-                Log.e("IngredientVM", "加载类别分组失败", e)
-            }
-        }
+    // 本地按类别分组（与后端逻辑一致）
+    private fun groupByCategory(ingredients: List<Ingredient>): Map<String, List<Ingredient>> {
+        return ingredients.groupBy {
+            val rawCategory = it.category ?: "未分类"
+            categoryMapping[rawCategory] ?: rawCategory
+        }.toSortedMap()
     }
 
-    // 手动添加单个食材
+    /** 手动添加单个食材，购买日期自动填充为当天，存储方式会从中文映射为后端枚举值 */
     fun addIngredient(
         name: String,
         category: String? = null,
@@ -141,10 +176,7 @@ class IngredientViewModel : ViewModel() {
                 val response = api.addIngredient(ingredient)
                 if (response.success) {
                     _toastMessage.value = "添加成功"
-                    // 刷新所有食材数据源（包括分组数据）
                     loadIngredients()
-                    loadIngredientsByFreshness()
-                    loadIngredientsByCategory()
                     loadAlerts()
                 } else {
                     _toastMessage.value = response.message ?: "添加失败"
@@ -160,7 +192,7 @@ class IngredientViewModel : ViewModel() {
         }
     }
 
-    // 批量添加食材（通过文本输入，后端解析）
+    /** 批量添加食材（通过文本输入，由后端智能解析） */
     fun batchAddIngredients(text: String) {
         viewModelScope.launch {
             try {
@@ -168,10 +200,7 @@ class IngredientViewModel : ViewModel() {
                 if (response.success) {
                     val count = response.data?.size ?: 0
                     _toastMessage.value = "成功添加${count}种食材"
-                    // 刷新所有食材数据源（包括分组数据）
                     loadIngredients()
-                    loadIngredientsByFreshness()
-                    loadIngredientsByCategory()
                     loadAlerts()
                 } else {
                     _toastMessage.value = response.message ?: "添加失败"
@@ -182,7 +211,7 @@ class IngredientViewModel : ViewModel() {
         }
     }
 
-    // 编辑食材
+    /** 编辑食材信息，存储方式会经过中文→后端枚举值映射 */
     fun updateIngredient(ingredient: Ingredient) {
         viewModelScope.launch {
             try {
@@ -203,17 +232,14 @@ class IngredientViewModel : ViewModel() {
         }
     }
 
-    // 消耗食材
+    /** 标记食材为已消耗（从食材库中移除） */
     fun consumeIngredient(id: Long) {
         viewModelScope.launch {
             try {
                 val response = api.consumeIngredient(id)
                 if (response.success) {
                     _toastMessage.value = "已标记为已消耗"
-                    // 刷新所有相关数据源
                     loadIngredients()
-                    loadIngredientsByFreshness()
-                    loadIngredientsByCategory()
                     loadAlerts()
                 } else {
                     _toastMessage.value = response.message ?: "操作失败"
@@ -224,7 +250,11 @@ class IngredientViewModel : ViewModel() {
         }
     }
 
-    // AI识别食材（新API）
+    /**
+     * AI拍照识别食材
+     * 流程：拍照→压缩为Base64→发送到后端 AI 接口→返回识别结果列表
+     * @param onSuccess 识别成功的回调，用于触发页面跳转
+     */
     fun recognizeImage(imageBase64: String, onSuccess: (List<RecognizedIngredient>) -> Unit = {}) {
         viewModelScope.launch {
             try {
@@ -252,7 +282,11 @@ class IngredientViewModel : ViewModel() {
         }
     }
 
-    // 批量添加识别的食材到食材库
+    /**
+     * 批量添加AI识别的食材到食材库
+     * 将 [RecognizedIngredient] 转换为 [Ingredient]，解析重量字符串为数值+单位，
+     * 计算保质期和存储方式，然后逐个调用添加接口
+     */
     fun addRecognizedIngredients(ingredients: List<RecognizedIngredient>) {
         viewModelScope.launch {
             try {
@@ -288,7 +322,7 @@ class IngredientViewModel : ViewModel() {
         }
     }
 
-    // 解析数量
+    /** 从重量字符串中提取数值部分，如 "500g" → 500.0 */
     private fun parseQuantity(weightStr: String): Double? {
         return try {
             val regex = Regex("([0-9.]+)")
@@ -299,7 +333,7 @@ class IngredientViewModel : ViewModel() {
         }
     }
 
-    // 解析单位
+    /** 从重量字符串中提取单位部分，如 "500g" → "g"，支持中英文单位 */
     private fun parseUnit(weightStr: String): String? {
         return when {
             weightStr.contains("g") || weightStr.contains("克") -> "g"
@@ -317,24 +351,34 @@ class IngredientViewModel : ViewModel() {
         }
     }
 
-    // 删除食材
+    /**
+     * 删除食材（乐观更新模式）
+     * 先从本地列表立即移除，分组数据自动派生更新，
+     * 然后异步调用后端删除，失败则重新加载回滚
+     */
     fun deleteIngredient(id: Long) {
         viewModelScope.launch {
             try {
+                // 乐观更新：立即从本地列表中移除，分组数据自动派生更新
+                _ingredients.value = _ingredients.value.filter { it.id != id }
+
                 val response = api.deleteIngredient(id)
                 if (response.success) {
                     _toastMessage.value = "已删除"
                     loadIngredients()
+                    loadAlerts()
                 } else {
                     _toastMessage.value = "删除失败: ${response.message}"
+                    loadIngredients()
                 }
             } catch (e: Exception) {
                 _toastMessage.value = "删除失败: ${e.message}"
+                loadIngredients()
             }
         }
     }
 
-    // 存储方式中文映射为后端枚举值
+    /** 存储方式中文映射为后端枚举值，如 "冷藏" → "REFRIGERATE" */
     private fun mapStorageMethod(display: String): String {
         return when (display) {
             "常温" -> "ROOM_TEMP"
@@ -345,7 +389,7 @@ class IngredientViewModel : ViewModel() {
         }
     }
 
-    // 将用户输入的日期规范化为 yyyy-MM-dd 格式
+    /** 将用户输入的日期规范化为 yyyy-MM-dd 格式，支持 "-"/"/"/"." 分隔符 */
     private fun normalizeDate(dateStr: String): String {
         return try {
             // 尝试解析常见格式并输出标准格式

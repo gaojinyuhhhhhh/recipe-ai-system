@@ -629,6 +629,220 @@ public final class LocalRecipeDao_Impl implements LocalRecipeDao {
   }
 
   @Override
+  public Object getByTitle(final long userId, final String title,
+      final Continuation<? super LocalRecipeEntity> $completion) {
+    final String _sql = "SELECT * FROM local_recipes WHERE userId = ? AND title = ? LIMIT 1";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
+    int _argIndex = 1;
+    _statement.bindLong(_argIndex, userId);
+    _argIndex = 2;
+    _statement.bindString(_argIndex, title);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<LocalRecipeEntity>() {
+      @Override
+      @Nullable
+      public LocalRecipeEntity call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfServerId = CursorUtil.getColumnIndexOrThrow(_cursor, "serverId");
+          final int _cursorIndexOfUserId = CursorUtil.getColumnIndexOrThrow(_cursor, "userId");
+          final int _cursorIndexOfTitle = CursorUtil.getColumnIndexOrThrow(_cursor, "title");
+          final int _cursorIndexOfDescription = CursorUtil.getColumnIndexOrThrow(_cursor, "description");
+          final int _cursorIndexOfCoverImage = CursorUtil.getColumnIndexOrThrow(_cursor, "coverImage");
+          final int _cursorIndexOfIngredients = CursorUtil.getColumnIndexOrThrow(_cursor, "ingredients");
+          final int _cursorIndexOfSteps = CursorUtil.getColumnIndexOrThrow(_cursor, "steps");
+          final int _cursorIndexOfCookingTime = CursorUtil.getColumnIndexOrThrow(_cursor, "cookingTime");
+          final int _cursorIndexOfDifficulty = CursorUtil.getColumnIndexOrThrow(_cursor, "difficulty");
+          final int _cursorIndexOfCuisine = CursorUtil.getColumnIndexOrThrow(_cursor, "cuisine");
+          final int _cursorIndexOfTags = CursorUtil.getColumnIndexOrThrow(_cursor, "tags");
+          final int _cursorIndexOfSyncStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "syncStatus");
+          final int _cursorIndexOfOriginalAuthor = CursorUtil.getColumnIndexOrThrow(_cursor, "originalAuthor");
+          final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+          final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
+          final LocalRecipeEntity _result;
+          if (_cursor.moveToFirst()) {
+            final long _tmpId;
+            _tmpId = _cursor.getLong(_cursorIndexOfId);
+            final Long _tmpServerId;
+            if (_cursor.isNull(_cursorIndexOfServerId)) {
+              _tmpServerId = null;
+            } else {
+              _tmpServerId = _cursor.getLong(_cursorIndexOfServerId);
+            }
+            final long _tmpUserId;
+            _tmpUserId = _cursor.getLong(_cursorIndexOfUserId);
+            final String _tmpTitle;
+            _tmpTitle = _cursor.getString(_cursorIndexOfTitle);
+            final String _tmpDescription;
+            if (_cursor.isNull(_cursorIndexOfDescription)) {
+              _tmpDescription = null;
+            } else {
+              _tmpDescription = _cursor.getString(_cursorIndexOfDescription);
+            }
+            final String _tmpCoverImage;
+            if (_cursor.isNull(_cursorIndexOfCoverImage)) {
+              _tmpCoverImage = null;
+            } else {
+              _tmpCoverImage = _cursor.getString(_cursorIndexOfCoverImage);
+            }
+            final String _tmpIngredients;
+            _tmpIngredients = _cursor.getString(_cursorIndexOfIngredients);
+            final String _tmpSteps;
+            _tmpSteps = _cursor.getString(_cursorIndexOfSteps);
+            final Integer _tmpCookingTime;
+            if (_cursor.isNull(_cursorIndexOfCookingTime)) {
+              _tmpCookingTime = null;
+            } else {
+              _tmpCookingTime = _cursor.getInt(_cursorIndexOfCookingTime);
+            }
+            final String _tmpDifficulty;
+            _tmpDifficulty = _cursor.getString(_cursorIndexOfDifficulty);
+            final String _tmpCuisine;
+            if (_cursor.isNull(_cursorIndexOfCuisine)) {
+              _tmpCuisine = null;
+            } else {
+              _tmpCuisine = _cursor.getString(_cursorIndexOfCuisine);
+            }
+            final String _tmpTags;
+            if (_cursor.isNull(_cursorIndexOfTags)) {
+              _tmpTags = null;
+            } else {
+              _tmpTags = _cursor.getString(_cursorIndexOfTags);
+            }
+            final String _tmpSyncStatus;
+            _tmpSyncStatus = _cursor.getString(_cursorIndexOfSyncStatus);
+            final String _tmpOriginalAuthor;
+            if (_cursor.isNull(_cursorIndexOfOriginalAuthor)) {
+              _tmpOriginalAuthor = null;
+            } else {
+              _tmpOriginalAuthor = _cursor.getString(_cursorIndexOfOriginalAuthor);
+            }
+            final long _tmpCreatedAt;
+            _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+            final long _tmpUpdatedAt;
+            _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
+            _result = new LocalRecipeEntity(_tmpId,_tmpServerId,_tmpUserId,_tmpTitle,_tmpDescription,_tmpCoverImage,_tmpIngredients,_tmpSteps,_tmpCookingTime,_tmpDifficulty,_tmpCuisine,_tmpTags,_tmpSyncStatus,_tmpOriginalAuthor,_tmpCreatedAt,_tmpUpdatedAt);
+          } else {
+            _result = null;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object getUploadedByTitle(final long userId, final String title,
+      final Continuation<? super LocalRecipeEntity> $completion) {
+    final String _sql = "SELECT * FROM local_recipes WHERE userId = ? AND title = ? AND syncStatus = 'UPLOADED' LIMIT 1";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
+    int _argIndex = 1;
+    _statement.bindLong(_argIndex, userId);
+    _argIndex = 2;
+    _statement.bindString(_argIndex, title);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<LocalRecipeEntity>() {
+      @Override
+      @Nullable
+      public LocalRecipeEntity call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfServerId = CursorUtil.getColumnIndexOrThrow(_cursor, "serverId");
+          final int _cursorIndexOfUserId = CursorUtil.getColumnIndexOrThrow(_cursor, "userId");
+          final int _cursorIndexOfTitle = CursorUtil.getColumnIndexOrThrow(_cursor, "title");
+          final int _cursorIndexOfDescription = CursorUtil.getColumnIndexOrThrow(_cursor, "description");
+          final int _cursorIndexOfCoverImage = CursorUtil.getColumnIndexOrThrow(_cursor, "coverImage");
+          final int _cursorIndexOfIngredients = CursorUtil.getColumnIndexOrThrow(_cursor, "ingredients");
+          final int _cursorIndexOfSteps = CursorUtil.getColumnIndexOrThrow(_cursor, "steps");
+          final int _cursorIndexOfCookingTime = CursorUtil.getColumnIndexOrThrow(_cursor, "cookingTime");
+          final int _cursorIndexOfDifficulty = CursorUtil.getColumnIndexOrThrow(_cursor, "difficulty");
+          final int _cursorIndexOfCuisine = CursorUtil.getColumnIndexOrThrow(_cursor, "cuisine");
+          final int _cursorIndexOfTags = CursorUtil.getColumnIndexOrThrow(_cursor, "tags");
+          final int _cursorIndexOfSyncStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "syncStatus");
+          final int _cursorIndexOfOriginalAuthor = CursorUtil.getColumnIndexOrThrow(_cursor, "originalAuthor");
+          final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+          final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
+          final LocalRecipeEntity _result;
+          if (_cursor.moveToFirst()) {
+            final long _tmpId;
+            _tmpId = _cursor.getLong(_cursorIndexOfId);
+            final Long _tmpServerId;
+            if (_cursor.isNull(_cursorIndexOfServerId)) {
+              _tmpServerId = null;
+            } else {
+              _tmpServerId = _cursor.getLong(_cursorIndexOfServerId);
+            }
+            final long _tmpUserId;
+            _tmpUserId = _cursor.getLong(_cursorIndexOfUserId);
+            final String _tmpTitle;
+            _tmpTitle = _cursor.getString(_cursorIndexOfTitle);
+            final String _tmpDescription;
+            if (_cursor.isNull(_cursorIndexOfDescription)) {
+              _tmpDescription = null;
+            } else {
+              _tmpDescription = _cursor.getString(_cursorIndexOfDescription);
+            }
+            final String _tmpCoverImage;
+            if (_cursor.isNull(_cursorIndexOfCoverImage)) {
+              _tmpCoverImage = null;
+            } else {
+              _tmpCoverImage = _cursor.getString(_cursorIndexOfCoverImage);
+            }
+            final String _tmpIngredients;
+            _tmpIngredients = _cursor.getString(_cursorIndexOfIngredients);
+            final String _tmpSteps;
+            _tmpSteps = _cursor.getString(_cursorIndexOfSteps);
+            final Integer _tmpCookingTime;
+            if (_cursor.isNull(_cursorIndexOfCookingTime)) {
+              _tmpCookingTime = null;
+            } else {
+              _tmpCookingTime = _cursor.getInt(_cursorIndexOfCookingTime);
+            }
+            final String _tmpDifficulty;
+            _tmpDifficulty = _cursor.getString(_cursorIndexOfDifficulty);
+            final String _tmpCuisine;
+            if (_cursor.isNull(_cursorIndexOfCuisine)) {
+              _tmpCuisine = null;
+            } else {
+              _tmpCuisine = _cursor.getString(_cursorIndexOfCuisine);
+            }
+            final String _tmpTags;
+            if (_cursor.isNull(_cursorIndexOfTags)) {
+              _tmpTags = null;
+            } else {
+              _tmpTags = _cursor.getString(_cursorIndexOfTags);
+            }
+            final String _tmpSyncStatus;
+            _tmpSyncStatus = _cursor.getString(_cursorIndexOfSyncStatus);
+            final String _tmpOriginalAuthor;
+            if (_cursor.isNull(_cursorIndexOfOriginalAuthor)) {
+              _tmpOriginalAuthor = null;
+            } else {
+              _tmpOriginalAuthor = _cursor.getString(_cursorIndexOfOriginalAuthor);
+            }
+            final long _tmpCreatedAt;
+            _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+            final long _tmpUpdatedAt;
+            _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
+            _result = new LocalRecipeEntity(_tmpId,_tmpServerId,_tmpUserId,_tmpTitle,_tmpDescription,_tmpCoverImage,_tmpIngredients,_tmpSteps,_tmpCookingTime,_tmpDifficulty,_tmpCuisine,_tmpTags,_tmpSyncStatus,_tmpOriginalAuthor,_tmpCreatedAt,_tmpUpdatedAt);
+          } else {
+            _result = null;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
   public Object searchRecipes(final long userId, final String keyword,
       final Continuation<? super List<LocalRecipeEntity>> $completion) {
     final String _sql = "SELECT * FROM local_recipes WHERE userId = ? AND (title LIKE '%' || ? || '%' OR tags LIKE '%' || ? || '%') ORDER BY updatedAt DESC";

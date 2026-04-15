@@ -8,6 +8,16 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
+/**
+ * Retrofit 网络客户端单例
+ *
+ * 提供统一的 HTTP 客户端配置：
+ * - 自动附加 JWT Bearer Token（通过 [authInterceptor]）
+ * - HTTP 日志输出（Body 级别，调试用）
+ * - 60秒超时配置（连接/读/写），兼容AI接口的较长响应时间
+ *
+ * 使用方式：RetrofitClient.api.xxx()
+ */
 object RetrofitClient {
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY

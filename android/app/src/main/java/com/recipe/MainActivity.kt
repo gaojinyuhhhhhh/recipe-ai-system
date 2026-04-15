@@ -65,6 +65,10 @@ sealed class BottomNavItem(
     data object Profile : BottomNavItem("profile", "我的", Icons.Filled.Person, Icons.Outlined.Person)
 }
 
+/**
+ * 应用主入口
+ * 初始化 TokenManager 并设置 Compose UI
+ */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,6 +87,18 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * 应用核心组合函数 — 统一管理导航、底部Tab、页面路由
+ *
+ * 导航架构：
+ * - 4个主 Tab：食材库 / 食谱 / 购物 / 我的
+ * - 子页面通过 NavHost 路由跳转，底部导航栏仅在主 Tab 页面显示
+ * - 底部导航使用 popUpTo(startDestination) + saveState/restoreState 模式
+ *   避免重复创建页面并保留各Tab状态
+ *
+ * 路由参数编码：
+ * - AI食谱详情页使用 Base64 编码中文参数，避免导航参数中包含特殊字符导致闪退
+ */
 @Composable
 fun RecipeApp() {
     val navController = rememberNavController()
@@ -91,7 +107,6 @@ fun RecipeApp() {
     val authViewModel: AuthViewModel = viewModel()
     val ingredientViewModel: IngredientViewModel = viewModel()
     val isLoggedIn by authViewModel.isLoggedIn.collectAsState()
-    val recognizedItems by ingredientViewModel.recognizedIngredients.collectAsState()
     val ingredientsList by ingredientViewModel.ingredients.collectAsState()
 
     val bottomNavItems = listOf(
@@ -104,7 +119,7 @@ fun RecipeApp() {
     // 只在主Tab页面显示底部导航
     val showBottomBar = currentRoute in bottomNavItems.map { it.route }
 
-    // 确定起始页面
+    // 根据登录状态决定起始页面：已登录→食材库，未登录→登录页
     val startDestination = if (isLoggedIn) BottomNavItem.Ingredients.route else "login"
 
     Scaffold(
@@ -155,7 +170,7 @@ fun RecipeApp() {
             startDestination = startDestination,
             modifier = Modifier.padding(innerPadding)
         ) {
-            // 登录页面
+            // 登录页面（登录成功后清除登录页回退栈，防止返回键回到登录页）
             composable("login") {
                 LoginScreen(
                     authViewModel = authViewModel,
@@ -340,28 +355,29 @@ fun RecipeApp() {
 
             // AI识别结果页
             composable("recognition_result") {
+                val recognizedItems by ingredientViewModel.recognizedIngredients.collectAsState()
                 RecognitionResultScreen(
                     recognizedItems = recognizedItems,
                     onNavigateBack = {
                         ingredientViewModel.clearRecognized()
                         navController.popBackStack()
                     },
-                    onAddAll = {
-                        ingredientViewModel.addRecognizedIngredients(recognizedItems)
+                    onAddAll = { selectedItems ->
+                        ingredientViewModel.addRecognizedIngredients(selectedItems)
                         navController.popBackStack()
                     },
                     viewModel = ingredientViewModel
                 )
             }
 
-            // AI智能推荐页
+            // AI智能推荐页（传入当前食材库所有食材名称）
             composable("ai_recommend") {
                 val ingredientNames = ingredientsList.map { it.name }
                 RecommendScreen(
                     ingredientNames = ingredientNames,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToRecipeDetail = { recipeName, mainIngredients ->
-                        // 使用Base64编码中文参数避免闪退
+                        // 使用Base64编码中文参数，避免导航参数中包含特殊字符导致闪退
                         val encodedName = Base64.encodeToString(recipeName.toByteArray(Charsets.UTF_8), Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
                         // 将mainIngredients列表编码为JSON字符串再Base64编码
                         val ingredientsJson = org.json.JSONArray(mainIngredients).toString()
@@ -371,7 +387,7 @@ fun RecipeApp() {
                 )
             }
 
-            // AI生成的完整食谱详情页
+            // AI生成的完整食谱详情页（参数用Base64编码传递，进入时解码）
             composable(
                 "ai_recipe_detail/{encodedRecipeName}/{encodedIngredients}",
                 arguments = listOf(
@@ -400,8 +416,11 @@ fun RecipeApp() {
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToMyRecipes = { navController.navigate("my_recipes") },
                     onNavigateToLocalRecipes = {
+                        // 使用与底部导航栏相同的导航模式，避免导航状态异常
                         navController.navigate(BottomNavItem.Recipes.route) {
-                            popUpTo(BottomNavItem.Recipes.route) { inclusive = false }
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
                             launchSingleTop = true
                             restoreState = true
                         }

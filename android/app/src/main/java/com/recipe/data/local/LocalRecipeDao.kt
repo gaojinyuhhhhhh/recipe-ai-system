@@ -21,6 +21,14 @@ interface LocalRecipeDao {
     @Query("SELECT * FROM local_recipes WHERE serverId = :serverId AND userId = :userId LIMIT 1")
     suspend fun getByServerId(serverId: Long, userId: Long): LocalRecipeEntity?
 
+    /** 通过标题和用户ID查询（判断是否已导入） */
+    @Query("SELECT * FROM local_recipes WHERE userId = :userId AND title = :title LIMIT 1")
+    suspend fun getByTitle(userId: Long, title: String): LocalRecipeEntity?
+
+    /** 通过标题和用户ID查询已上传的食谱 */
+    @Query("SELECT * FROM local_recipes WHERE userId = :userId AND title = :title AND syncStatus = 'UPLOADED' LIMIT 1")
+    suspend fun getUploadedByTitle(userId: Long, title: String): LocalRecipeEntity?
+
     /** 插入食谱 */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(recipe: LocalRecipeEntity): Long

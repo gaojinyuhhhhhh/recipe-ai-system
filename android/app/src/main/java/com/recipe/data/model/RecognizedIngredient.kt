@@ -1,15 +1,15 @@
 package com.recipe.data.model
 
 /**
- * AI识别的食材结果
+ * AI识别的食材结果（可编辑）
  */
 data class RecognizedIngredient(
-    val name: String,
-    val category: String,
-    val freshness: String,  // FRESH/WILTING/SPOILING
-    val estimatedWeight: String,
-    val storageMethod: String,  // ROOM_TEMP/REFRIGERATE/FREEZE/DRY_COOL
-    val shelfLife: Int
+    var name: String,
+    var category: String,
+    var freshness: String,  // FRESH/WILTING/SPOILING
+    var estimatedWeight: String,
+    var storageMethod: String,  // ROOM_TEMP/REFRIGERATE/FREEZE/DRY_COOL
+    var shelfLife: Int
 ) {
     /**
      * 获取新鲜度显示文本
