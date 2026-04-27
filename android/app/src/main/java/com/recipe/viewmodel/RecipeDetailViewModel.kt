@@ -15,15 +15,22 @@ import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
 /**
+ * AI生成的步骤（包含时长信息）
+ */
+data class GeneratedRecipeStep(
+    val content: String = "",
+    val duration: Int? = null
+)
+
+/**
  * AI生成的完整食谱详情
  * 用于展示AI推荐食谱的完整信息，包含食材、步骤、营养、小贴士等
- * 注意：ingredients 和 steps 都是格式化字符串列表，非结构化对象
  */
 data class GeneratedRecipeDetail(
     val name: String = "",
     val description: String = "",
     val ingredients: List<String> = emptyList(),
-    val steps: List<String> = emptyList(),
+    val steps: List<GeneratedRecipeStep> = emptyList(),
     val cookingTime: Int = 0,
     val difficulty: String = "MEDIUM",
     val servings: Int = 2,
@@ -187,13 +194,13 @@ class RecipeDetailViewModel(private val application: Application) : androidx.lif
                 }
 
                 // 后端期望 ingredients/steps/tags 是 JSON 字符串，不是对象列表
-                val stepsList = currentRecipe.steps.mapIndexed { index, stepContent ->
+                val stepsList = currentRecipe.steps.mapIndexed { index, step ->
                     mapOf(
                         "step" to (index + 1),
-                        "content" to stepContent,
-                        "duration" to if (currentRecipe.steps.isNotEmpty()) {
+                        "content" to step.content,
+                        "duration" to (step.duration ?: if (currentRecipe.steps.isNotEmpty()) {
                             (currentRecipe.cookingTime * 60 / currentRecipe.steps.size).coerceAtLeast(60)
-                        } else 60
+                        } else 60)
                     )
                 }
 
@@ -262,14 +269,14 @@ class RecipeDetailViewModel(private val application: Application) : androidx.lif
                     parseIngredientString(ingredientStr)
                 }
 
-                // 构建步骤JSON - 步骤是字符串列表，需要解析出结构
-                val stepsList = currentRecipe.steps.mapIndexed { index, stepContent ->
+                // 构建步骤JSON - 使用真实duration，无则估算
+                val stepsList = currentRecipe.steps.mapIndexed { index, step ->
                     mapOf(
                         "step" to (index + 1),
-                        "content" to stepContent,
-                        "duration" to if (currentRecipe.steps.isNotEmpty()) {
+                        "content" to step.content,
+                        "duration" to (step.duration ?: if (currentRecipe.steps.isNotEmpty()) {
                             (currentRecipe.cookingTime * 60 / currentRecipe.steps.size).coerceAtLeast(60)
-                        } else 60
+                        } else 60)
                     )
                 }
 
@@ -364,12 +371,20 @@ class RecipeDetailViewModel(private val application: Application) : androidx.lif
                         else -> emptyList()
                     }
 
-                    // 解析步骤列表 - 后端返回对象列表，提取content字段
+                    // 解析步骤列表 - 保留content和duration字段
                     val steps = when (val stepData = data["steps"]) {
                         is List<*> -> stepData.mapNotNull { item ->
                             when (item) {
-                                is String -> item  // 已经是字符串
-                                is Map<*, *> -> item["content"] as? String  // 从对象提取content
+                                is String -> GeneratedRecipeStep(content = item)
+                                is Map<*, *> -> {
+                                    val content = item["content"] as? String ?: return@mapNotNull null
+                                    val duration = when (val d = item["duration"]) {
+                                        is Number -> d.toInt()
+                                        is String -> d.toIntOrNull()
+                                        else -> null
+                                    }
+                                    GeneratedRecipeStep(content = content, duration = duration)
+                                }
                                 else -> null
                             }
                         }

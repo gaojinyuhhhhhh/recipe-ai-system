@@ -16,8 +16,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.recipe.viewmodel.CookingSessionHolder
 import com.recipe.viewmodel.GeneratedRecipeDetail
+import com.recipe.viewmodel.GeneratedRecipeStep
 import com.recipe.viewmodel.RecipeDetailViewModel
+import com.recipe.data.model.RecipeStep
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,6 +30,7 @@ fun RecipeDetailFromRecommendScreen(
     onNavigateBack: () -> Unit,
     onNavigateToMyRecipes: () -> Unit = {},
     onNavigateToLocalRecipes: () -> Unit = {},
+    onNavigateToCooking: () -> Unit = {},
 ) {
     val context = LocalContext.current.applicationContext as android.app.Application
     val viewModel: RecipeDetailViewModel = viewModel(
@@ -98,7 +102,8 @@ fun RecipeDetailFromRecommendScreen(
                         onSave = { viewModel.saveRecipe() },
                         onImport = { viewModel.importToLocalRecipes() },
                         onNavigateToMyRecipes = onNavigateToMyRecipes,
-                        onNavigateToLocalRecipes = onNavigateToLocalRecipes
+                        onNavigateToLocalRecipes = onNavigateToLocalRecipes,
+                        onNavigateToCooking = onNavigateToCooking
                     )
                 }
             }
@@ -161,7 +166,8 @@ private fun RecipeDetailContent(
     onSave: () -> Unit,
     onImport: () -> Unit,
     onNavigateToMyRecipes: () -> Unit,
-    onNavigateToLocalRecipes: () -> Unit
+    onNavigateToLocalRecipes: () -> Unit,
+    onNavigateToCooking: () -> Unit = {}
 ) {
     var showSaveSuccess by remember { mutableStateOf(false) }
 
@@ -200,7 +206,27 @@ private fun RecipeDetailContent(
         Spacer(modifier = Modifier.height(16.dp))
 
         // 烹饪步骤
-        StepsSection(steps = recipe.steps)
+        StepsSection(
+            steps = recipe.steps,
+            cookingTime = recipe.cookingTime,
+            onStartCooking = {
+                // 将步骤转换为RecipeStep（使用真实duration，无则估算）
+                val recipeSteps = recipe.steps.mapIndexed { index, step ->
+                    RecipeStep(
+                        step = index + 1,
+                        content = step.content,
+                        duration = step.duration ?: if (recipe.steps.isNotEmpty() && recipe.cookingTime > 0) {
+                            (recipe.cookingTime * 60 / recipe.steps.size).coerceAtLeast(30)
+                        } else 60
+                    )
+                }
+                CookingSessionHolder.set(
+                    title = recipe.name,
+                    steps = recipeSteps
+                )
+                onNavigateToCooking()
+            }
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -373,14 +399,30 @@ private fun IngredientsSection(ingredients: List<String>) {
 }
 
 @Composable
-private fun StepsSection(steps: List<String>) {
+private fun StepsSection(steps: List<GeneratedRecipeStep>, cookingTime: Int = 0, onStartCooking: () -> Unit = {}) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "烹饪步骤",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "烹饪步骤",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                if (steps.isNotEmpty()) {
+                    FilledTonalButton(
+                        onClick = onStartCooking,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("开始烹饪", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
             steps.forEachIndexed { index, step ->
                 Row(
@@ -400,11 +442,23 @@ private fun StepsSection(steps: List<String>) {
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = step,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = step.content,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        // 显示步骤时长
+                        step.duration?.let { dur ->
+                            if (dur > 0) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (dur >= 60) "约${dur / 60}分钟" else "约${dur}秒",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

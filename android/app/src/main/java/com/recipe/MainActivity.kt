@@ -38,6 +38,7 @@ import com.recipe.ui.ai.RecommendScreen
 import com.recipe.ui.ai.RecipeDetailFromRecommendScreen
 import com.recipe.ui.camera.CameraScreen
 import com.recipe.ui.camera.RecognitionResultScreen
+import com.recipe.ui.recipe.CookingModeScreen
 import com.recipe.ui.recipe.CreateRecipeScreen
 import com.recipe.ui.recipe.EditRecipeScreen
 import com.recipe.ui.recipe.EditLocalRecipeScreen
@@ -295,6 +296,9 @@ fun RecipeApp() {
                             launchSingleTop = true
                             restoreState = true
                         }
+                    },
+                    onNavigateToCooking = {
+                        navController.navigate("cooking_mode")
                     }
                 )
             }
@@ -323,6 +327,9 @@ fun RecipeApp() {
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToEdit = { id ->
                         navController.navigate("edit_local_recipe/$id")
+                    },
+                    onNavigateToCooking = {
+                        navController.navigate("cooking_mode")
                     }
                 )
             }
@@ -370,9 +377,14 @@ fun RecipeApp() {
                 )
             }
 
-            // AI智能推荐页（传入当前食材库所有食材名称）
+            // AI智能推荐页（传入当前食材库中未过期的食材名称）
             composable("ai_recommend") {
-                val ingredientNames = ingredientsList.map { it.name }
+                val ingredientNames = ingredientsList
+                    .filter { ingredient ->
+                        val remaining = ingredient.getRemainingDays()
+                        remaining == null || remaining >= 0  // 排除已过期食材
+                    }
+                    .map { it.name }
                 RecommendScreen(
                     ingredientNames = ingredientNames,
                     onNavigateBack = { navController.popBackStack() },
@@ -424,16 +436,31 @@ fun RecipeApp() {
                             launchSingleTop = true
                             restoreState = true
                         }
+                    },
+                    onNavigateToCooking = {
+                        navController.navigate("cooking_mode")
                     }
                 )
             }
 
             // AI对话助手页
             composable("ai_chat") {
-                val chatIngredientNames = ingredientsList.map { it.name }
+                val chatIngredientNames = ingredientsList
+                    .filter { ingredient ->
+                        val remaining = ingredient.getRemainingDays()
+                        remaining == null || remaining >= 0  // 排除已过期食材
+                    }
+                    .map { it.name }
                 AiChatScreen(
                     onNavigateBack = { navController.popBackStack() },
                     ingredientNames = chatIngredientNames
+                )
+            }
+
+            // 烹饪模式页
+            composable("cooking_mode") {
+                CookingModeScreen(
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

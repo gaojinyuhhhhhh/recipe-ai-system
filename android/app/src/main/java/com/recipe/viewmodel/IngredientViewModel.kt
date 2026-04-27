@@ -67,7 +67,7 @@ class IngredientViewModel : ViewModel() {
 
     /**
      * 按新鲜度分组 — 由 _ingredients 自动派生，食材列表变化时自动重新分组
-     * 分组规则：expiringSoon(≤3天) / fresh(4-7天) / longTerm(>7天)
+     * 分组规则：expired(已过期) / expiringSoon(≤3天) / fresh(4-7天) / longTerm(>7天)
      */
     val ingredientsByFreshness: StateFlow<Map<String, List<Ingredient>>> = _ingredients
         .map { list -> groupByFreshness(list) }
@@ -130,12 +130,14 @@ class IngredientViewModel : ViewModel() {
         val grouped = ingredients.groupBy { ingredient ->
             val remaining = ingredient.getRemainingDays() ?: Int.MAX_VALUE
             when {
-                remaining <= 3 -> "expiringSoon"  // 3天内过期
-                remaining <= 7 -> "fresh"          // 4-7天
-                else -> "longTerm"                 // 7天以上
+                remaining < 0 -> "expired"           // 已过期
+                remaining <= 3 -> "expiringSoon"     // 3天内过期
+                remaining <= 7 -> "fresh"             // 4-7天
+                else -> "longTerm"                    // 7天以上
             }
         }
         return mapOf(
+            "expired" to (grouped["expired"] ?: emptyList()),
             "expiringSoon" to (grouped["expiringSoon"] ?: emptyList()),
             "fresh" to (grouped["fresh"] ?: emptyList()),
             "longTerm" to (grouped["longTerm"] ?: emptyList())
@@ -299,13 +301,16 @@ class IngredientViewModel : ViewModel() {
                         category = recognized.category,
                         quantity = parseQuantity(recognized.estimatedWeight),
                         unit = parseUnit(recognized.estimatedWeight),
+                        freshness = recognized.freshness,
                         purchaseDate = LocalDate.now().toString(),
                         expiryDate = recognized.getExpiryDate(),
-                        storageMethod = mapStorageMethod(recognized.getStorageMethodDisplay())
+                        shelfLife = recognized.shelfLife,
+                        storageMethod = recognized.storageMethod  // 直接使用枚举值(如DRY_COOL)，不经过中文转换
                     )
                     try {
                         val response = api.addIngredient(ingredient)
                         if (response.success) successCount++
+                        else Log.w("IngredientVM", "添加食材返回失败: ${recognized.name}, msg=${response.message}")
                     } catch (e: Exception) {
                         Log.e("IngredientVM", "添加食材失败: ${recognized.name}", e)
                     }

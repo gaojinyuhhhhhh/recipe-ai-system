@@ -275,12 +275,14 @@ fun FreshnessGroupedList(
 ) {
     // 新鲜度分组顺序和配置
     val freshnessGroups = listOf(
+        Triple("expired", "已过期", Color(0xFFB71C1C)),       // 深红色
         Triple("expiringSoon", "即将过期", Color(0xFFE53935)),  // 红色
         Triple("fresh", "新鲜食材", Color(0xFFFFA726)),         // 橙色
-        Triple("longTerm", "长期保存", Color(0xFF66BB6A))       // 绿色
+        Triple("longTerm", "长期保存", Color(0xFF66BB6A))        // 绿色
     )
     
     val groupIcons = mapOf(
+        "expired" to Icons.Default.EventBusy,
         "expiringSoon" to Icons.Default.Warning,
         "fresh" to Icons.Default.CheckCircle,
         "longTerm" to Icons.Default.CalendarToday

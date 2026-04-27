@@ -29,6 +29,7 @@ fun LocalRecipeDetailScreen(
     localRecipeId: Long,
     onNavigateBack: () -> Unit,
     onNavigateToEdit: (Long) -> Unit = {},
+    onNavigateToCooking: () -> Unit = {},
     recipeViewModel: RecipeViewModel = viewModel()
 ) {
     val localRecipe by recipeViewModel.currentLocalRecipe.collectAsState()
@@ -273,7 +274,31 @@ fun LocalRecipeDetailScreen(
                 // 烹饪步骤
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("烹饪步骤", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("烹饪步骤", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        // 开始烹饪按钮
+                        if (steps.isNotEmpty()) {
+                            FilledTonalButton(
+                                onClick = {
+                                    com.recipe.viewmodel.CookingSessionHolder.set(
+                                        title = recipe.title,
+                                        steps = steps,
+                                        localRecipeId = localRecipeId
+                                    )
+                                    onNavigateToCooking()
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("开始烹饪", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    }
                 }
                 if (steps.isEmpty()) {
                     item { Text("暂无步骤信息", color = MaterialTheme.colorScheme.onSurfaceVariant) }

@@ -6,6 +6,6 @@
     <color name="primary">#FF34C759</color>
     <color name="primary_dark">#FF28A745</color>
     <color name="white">#FFFFFFFF</color>
-    <string name="app_name">智材识厨</string>
+    <string name="app_name">识材智厨</string>
     <style name="Theme.RecipeAI" parent="Theme.AppCompat.Light.NoActionBar"/>
 </resources>
