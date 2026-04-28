@@ -1,5 +1,6 @@
 package com.recipe.ui.recipe
 
+import android.Manifest
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
@@ -9,6 +10,8 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -30,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.recipe.viewmodel.ChatViewModel
 import com.recipe.viewmodel.CookingViewModel
 import com.recipe.data.model.RecipeStep
 
@@ -65,9 +69,22 @@ fun CookingModeScreen(
 
     var showStepList by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
+    var showVoiceChat by remember { mutableStateOf(false) }
+
+    // 语音助手的ChatViewModel
+    val chatViewModel: ChatViewModel = viewModel()
+
+    // Android 13+ 运行时请求通知权限
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { /* 无论授权与否都不阻塞流程 */ }
 
     // 进入时先初始化TTS，然后延迟加载数据以确保TTS准备就绪
     LaunchedEffect(Unit) {
+        // 请求通知权限（Android 13+）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         cookingViewModel.initTts()
         // 给TTS引擎一些时间初始化，然后再加载数据
         kotlinx.coroutines.delay(200)
@@ -129,6 +146,15 @@ fun CookingModeScreen(
                         Icon(
                             if (showStepList) Icons.Default.List else Icons.Default.ViewList,
                             contentDescription = "步骤列表"
+                        )
+                    }
+                    // 语音助手按钮
+                    IconButton(onClick = { showVoiceChat = !showVoiceChat }) {
+                        Icon(
+                            Icons.Default.Mic,
+                            contentDescription = "语音助手",
+                            tint = if (showVoiceChat) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
@@ -480,6 +506,19 @@ fun CookingModeScreen(
             dismissButton = {
                 TextButton(onClick = { showExitDialog = false }) { Text("继续烹饪") }
             }
+        )
+    }
+
+    // 语音助手浮层
+    Box(modifier = Modifier.fillMaxSize()) {
+        CookingVoiceChatPanel(
+            chatViewModel = chatViewModel,
+            recipeTitle = recipeTitle,
+            steps = steps,
+            currentStepIndex = currentStepIndex,
+            remainingTime = remainingTime,
+            isVisible = showVoiceChat,
+            onDismiss = { showVoiceChat = false }
         )
     }
 }

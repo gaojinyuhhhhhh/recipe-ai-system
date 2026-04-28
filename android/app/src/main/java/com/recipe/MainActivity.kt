@@ -1,5 +1,6 @@
 package com.recipe
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
@@ -50,6 +51,8 @@ import com.recipe.ui.theme.RecipeAITheme
 import com.recipe.ui.user.*
 import com.recipe.viewmodel.AuthViewModel
 import com.recipe.viewmodel.IngredientViewModel
+import com.recipe.util.CookingNotificationManager
+import com.recipe.viewmodel.CookingSessionHolder
 
 /**
  * 底部导航项定义
@@ -71,19 +74,40 @@ sealed class BottomNavItem(
  * 初始化 TokenManager 并设置 Compose UI
  */
 class MainActivity : ComponentActivity() {
+
+    // 用于通知点击时传递导航目标给 Compose
+    private var _navigateTo = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 初始化TokenManager
         TokenManager.init(applicationContext)
+        // 创建通知渠道（必须在发送通知前调用）
+        CookingNotificationManager.createChannel(applicationContext)
+
+        // 检查是否从通知点击进入，获取目标路由
+        _navigateTo.value = intent?.getStringExtra(CookingNotificationManager.EXTRA_NAVIGATE_TO)
+
         setContent {
             RecipeAITheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    RecipeApp()
+                    RecipeApp(navigateToState = _navigateTo)
                 }
             }
+        }
+    }
+
+    /**
+     * Activity已在前台时，通知点击会触发 onNewIntent 而非 onCreate
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val target = intent.getStringExtra(CookingNotificationManager.EXTRA_NAVIGATE_TO)
+        if (target != null) {
+            _navigateTo.value = target
         }
     }
 }
@@ -101,7 +125,7 @@ class MainActivity : ComponentActivity() {
  * - AI食谱详情页使用 Base64 编码中文参数，避免导航参数中包含特殊字符导致闪退
  */
 @Composable
-fun RecipeApp() {
+fun RecipeApp(navigateToState: MutableState<String?> = mutableStateOf(null)) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -109,6 +133,7 @@ fun RecipeApp() {
     val ingredientViewModel: IngredientViewModel = viewModel()
     val isLoggedIn by authViewModel.isLoggedIn.collectAsState()
     val ingredientsList by ingredientViewModel.ingredients.collectAsState()
+    val navigateTo by navigateToState
 
     val bottomNavItems = listOf(
         BottomNavItem.Ingredients,
@@ -122,6 +147,20 @@ fun RecipeApp() {
 
     // 根据登录状态决定起始页面：已登录→食材库，未登录→登录页
     val startDestination = if (isLoggedIn) BottomNavItem.Ingredients.route else "login"
+
+    // 处理通知点击跳转：登录后自动导航到烹饪界面
+    LaunchedEffect(isLoggedIn, navigateTo) {
+        if (isLoggedIn && navigateTo == "cooking_mode") {
+            // 检查CookingSessionHolder是否有数据（防止空数据导航）
+            if (CookingSessionHolder.steps.isNotEmpty()) {
+                navController.navigate("cooking_mode") {
+                    launchSingleTop = true
+                }
+            }
+            // 消费一次性导航事件
+            navigateToState.value = null
+        }
+    }
 
     Scaffold(
         bottomBar = {

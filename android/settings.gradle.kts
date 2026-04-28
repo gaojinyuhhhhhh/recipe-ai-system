@@ -1,4 +1,9 @@
 pluginManagement {
+    plugins {
+        id("com.android.application") version "8.5.0"
+        id("org.jetbrains.kotlin.android") version "1.9.20"
+        id("com.google.devtools.ksp") version "1.9.20-1.0.14"
+    }
     repositories {
         maven { url = uri("https://maven.aliyun.com/repository/google") }
         maven { url = uri("https://maven.aliyun.com/repository/public") }

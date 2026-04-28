@@ -10,6 +10,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.recipe.data.model.RecipeStep
+import com.recipe.util.CookingNotificationManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -435,6 +436,27 @@ class CookingViewModel(application: Application) : AndroidViewModel(application)
             hasSpokenTimerFinish = true
             speak("时间到！")
         }
+        // 发送步骤完成通知（App在后台时也能收到）
+        sendStepCompleteNotification()
+    }
+
+    /**
+     * 发送步骤完成通知
+     */
+    private fun sendStepCompleteNotification() {
+        val context = getApplication<Application>()
+        val currentIdx = _currentStepIndex.value
+        val currentContent = currentStep?.content ?: ""
+        val nextContent = _steps.value.getOrNull(currentIdx + 1)?.content
+        val title = _recipeTitle.value
+        CookingNotificationManager.showStepComplete(
+            context = context,
+            stepIndex = currentIdx,
+            totalSteps = totalSteps,
+            stepContent = currentContent,
+            nextStepContent = nextContent,
+            recipeTitle = title
+        )
     }
 
     // ==================== 步骤切换 ====================
@@ -524,6 +546,16 @@ class CookingViewModel(application: Application) : AndroidViewModel(application)
         _isStepTimerFinished.value = false
         _isComplete.value = true
         speak("烹饪完成！太棒了！")
+        // 发送烹饪完成通知
+        val context = getApplication<Application>()
+        CookingNotificationManager.showStepComplete(
+            context = context,
+            stepIndex = _currentStepIndex.value,
+            totalSteps = totalSteps,
+            stepContent = currentStep?.content ?: "",
+            nextStepContent = null,  // 无下一步，表示已完成
+            recipeTitle = _recipeTitle.value
+        )
     }
 
     /**
