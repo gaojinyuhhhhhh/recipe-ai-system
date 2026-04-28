@@ -124,7 +124,9 @@ fun LocalRecipeDetailScreen(
                     ExtendedFloatingActionButton(
                         onClick = { showUploadDialog = true },
                         icon = { Icon(Icons.Default.CloudUpload, contentDescription = null) },
-                        text = { Text("发布到社区") }
+                        text = { Text("发布到社区") },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             }

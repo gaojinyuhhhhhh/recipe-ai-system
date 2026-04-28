@@ -1,6 +1,9 @@
 package com.recipe.viewmodel
 
 import android.app.Application
+import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
@@ -66,9 +69,18 @@ class CookingViewModel(application: Application) : AndroidViewModel(application)
 
     private var tts: TextToSpeech? = null
     private var ttsReady = false
+    private var ttsFailed = false  // TTS引擎是否初始化失败（设备无TTS引擎）
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    // TTS初始化完成前的待播报队列
+    private val pendingSpeech = mutableListOf<String>()
 
     private val _isVoiceEnabled = MutableStateFlow(true)
     val isVoiceEnabled: StateFlow<Boolean> = _isVoiceEnabled
+
+    // TTS引擎是否可用（设备是否安装了TTS引擎）
+    private val _isTtsAvailable = MutableStateFlow(true)
+    val isTtsAvailable: StateFlow<Boolean> = _isTtsAvailable
 
     // 是否已播报过当前步骤的倒计时结束语音
     private var hasSpokenTimerFinish = false
@@ -80,17 +92,74 @@ class CookingViewModel(application: Application) : AndroidViewModel(application)
      */
     fun initTts() {
         if (tts != null) return
+        Log.i(TAG, "开始初始化TTS引擎...")
+        // 不指定引擎名，使用系统默认TTS引擎（OPPO/华为等手机没有Google TTS）
         tts = TextToSpeech(getApplication<Application>()) { status ->
+            Log.i(TAG, "TTS OnInit回调, status=$status")
             if (status == TextToSpeech.SUCCESS) {
-                val result = tts?.setLanguage(Locale.CHINESE)
-                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    Log.w(TAG, "中文TTS不可用，尝试默认语言")
-                    tts?.setLanguage(Locale.getDefault())
+                // 优先尝试简体中文，再尝试中文，最后回退默认
+                val locales = listOf(Locale.SIMPLIFIED_CHINESE, Locale.CHINESE, Locale.getDefault())
+                var langSet = false
+                var langResult = -1
+                for (locale in locales) {
+                    val result = tts?.setLanguage(locale)
+                    Log.i(TAG, "设置语言 $locale: result=$result (0=成功, 1=缺少数据, 2=不支持)")
+                    if (result == TextToSpeech.LANG_AVAILABLE || result == TextToSpeech.LANG_COUNTRY_AVAILABLE) {
+                        langSet = true
+                        langResult = result ?: -1
+                        Log.i(TAG, "成功设置TTS语言为: $locale")
+                        break
+                    }
                 }
-                ttsReady = true
-                Log.d(TAG, "TTS引擎初始化成功")
+                
+                if (!langSet) {
+                    Log.w(TAG, "所有中文语言均不可用，回退到默认语言")
+                    // 即使没有中文，也尝试用默认语言播报（可能会有英文口音）
+                    val defaultResult = tts?.setLanguage(Locale.getDefault())
+                    Log.i(TAG, "设置默认语言: result=$defaultResult")
+                    if (defaultResult != TextToSpeech.LANG_MISSING_DATA && defaultResult != TextToSpeech.LANG_NOT_SUPPORTED) {
+                        langSet = true
+                        langResult = defaultResult ?: -1
+                    }
+                }
+                
+                if (!langSet) {
+                    Log.e(TAG, "TTS引擎无法设置任何语言，语音播报将不可用")
+                    ttsFailed = true
+                    _isTtsAvailable.value = false
+                    _isVoiceEnabled.value = false
+                    pendingSpeech.clear()
+                    tts?.shutdown()
+                    tts = null
+                    // 在lambda中不能使用return，需要让后续代码不执行
+                    // 通过设置tts=null和ttsFailed=true来阻止后续操作
+                } else {
+                    // 设置音频属性确保走媒体通道
+                    tts?.setAudioAttributes(
+                        android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build()
+                    )
+                    
+                    // 设置音量和语速
+                    tts?.setPitch(1.0f)  // 正常音调
+                    tts?.setSpeechRate(0.9f)  // 稍慢语速，更清晰
+
+                    ttsReady = true
+                    Log.i(TAG, "TTS引擎初始化成功，待播报队列: ${pendingSpeech.size}条")
+                    // 延迟500ms后播放缓存，给引擎充分预热时间
+                    mainHandler.postDelayed({ flushPendingSpeech() }, 500)
+                }
             } else {
-                Log.e(TAG, "TTS引擎初始化失败: $status")
+                Log.e(TAG, "TTS引擎初始化失败: $status，设备可能未安装TTS引擎")
+                ttsFailed = true
+                _isTtsAvailable.value = false
+                _isVoiceEnabled.value = false
+                pendingSpeech.clear()
+                // 清理失败的TTS实例
+                tts?.shutdown()
+                tts = null
             }
         }
     }
@@ -106,16 +175,112 @@ class CookingViewModel(application: Application) : AndroidViewModel(application)
      * 语音播报文本
      */
     private fun speak(text: String) {
-        if (!_isVoiceEnabled.value || !ttsReady) return
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "cooking_${System.currentTimeMillis()}")
+        if (!_isVoiceEnabled.value) {
+            Log.d(TAG, "语音已关闭，跳过播报: $text")
+            return
+        }
+        if (ttsFailed) {
+            Log.w(TAG, "TTS不可用，跳过播报: $text")
+            return  // TTS不可用，直接跳过
+        }
+        if (!ttsReady) {
+            // TTS尚未就绪，加入待播报队列
+            pendingSpeech.add(text)
+            Log.i(TAG, "TTS未就绪，缓存播报: $text")
+            return
+        }
+        
+        // 确保TTS引擎正常工作
+        val ttsInstance = tts
+        if (ttsInstance == null) {
+            Log.e(TAG, "TTS实例为空，无法播报: $text")
+            return
+        }
+        
+        try {
+            val utteranceId = "cooking_${System.currentTimeMillis()}"
+            val result = ttsInstance.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+            Log.i(TAG, "speak()调用: text=$text, result=$result, utteranceId=$utteranceId")
+            
+            if (result == TextToSpeech.ERROR) {
+                Log.e(TAG, "TTS播报失败: $text")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "TTS播报异常: $text", e)
+        }
     }
 
     /**
      * 语音播报（排队模式，不会打断当前播报）
      */
     private fun speakQueue(text: String) {
-        if (!_isVoiceEnabled.value || !ttsReady) return
-        tts?.speak(text, TextToSpeech.QUEUE_ADD, null, "cooking_q_${System.currentTimeMillis()}")
+        if (!_isVoiceEnabled.value) {
+            Log.d(TAG, "语音已关闭，跳过排队播报: $text")
+            return
+        }
+        if (ttsFailed) {
+            Log.w(TAG, "TTS不可用，跳过排队播报: $text")
+            return
+        }
+        if (!ttsReady) {
+            pendingSpeech.add(text)
+            Log.i(TAG, "TTS未就绪，缓存排队播报: $text")
+            return
+        }
+        
+        val ttsInstance = tts
+        if (ttsInstance == null) {
+            Log.e(TAG, "TTS实例为空，无法排队播报: $text")
+            return
+        }
+        
+        try {
+            val utteranceId = "cooking_q_${System.currentTimeMillis()}"
+            val result = ttsInstance.speak(text, TextToSpeech.QUEUE_ADD, null, utteranceId)
+            Log.i(TAG, "speakQueue()调用: text=$text, result=$result, utteranceId=$utteranceId")
+            
+            if (result == TextToSpeech.ERROR) {
+                Log.e(TAG, "TTS排队播报失败: $text")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "TTS排队播报异常: $text", e)
+        }
+    }
+
+    /**
+     * 播放缓存的待播报内容
+     */
+    private fun flushPendingSpeech() {
+        if (pendingSpeech.isEmpty()) {
+            Log.d(TAG, "flushPendingSpeech: 无待播报内容")
+            return
+        }
+        
+        Log.i(TAG, "flushPendingSpeech: ${pendingSpeech.size}条待播报")
+        val toSpeak = pendingSpeech.toList()
+        pendingSpeech.clear()
+        
+        val ttsInstance = tts
+        if (ttsInstance == null) {
+            Log.e(TAG, "flushPendingSpeech: TTS实例为空")
+            return
+        }
+        
+        // 第一条用QUEUE_FLUSH（打断静默），后续用QUEUE_ADD排队
+        toSpeak.forEachIndexed { index, text ->
+            val queueMode = if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+            try {
+                val utteranceId = "cooking_pending_${System.currentTimeMillis()}_$index"
+                val result = ttsInstance.speak(text, queueMode, null, utteranceId)
+                Log.i(TAG, "flushPending speak[$index]: result=$result, text=$text, utteranceId=$utteranceId")
+                
+                if (result == TextToSpeech.ERROR) {
+                    Log.e(TAG, "flushPending speak[$index] 失败: $text")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "flushPending speak[$index] 异常: $text", e)
+            }
+        }
     }
 
     // ==================== 食谱数据 ====================

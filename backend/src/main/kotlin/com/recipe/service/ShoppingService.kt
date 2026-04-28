@@ -56,8 +56,12 @@ class ShoppingService(
         val recipeIngredients: List<RecipeIngredientItem> = 
             objectMapper.readValue(recipe.ingredients)
         
-        // 获取用户已有食材
+        // 获取用户已有食材（排除已过期的，过期食材不可用需要重新购买）
         val existingIngredients = ingredientRepository.findByUserIdAndIsConsumedFalse(userId)
+            .filter { ingredient ->
+                val remaining = ingredient.getRemainingDays()
+                remaining == null || remaining >= 0
+            }
         val existingNames = existingIngredients.map { it.name }.toSet()
         
         // 筛选缺少的食材
@@ -151,11 +155,14 @@ class ShoppingService(
         
         itemIds.forEach { id ->
             val item = shoppingRepository.findById(id).orElse(null)
-            if (item != null && item.userId == userId && !item.isCompleted) {
-                // 1. 标记完成
-                item.isCompleted = true
-                item.completedAt = LocalDateTime.now()
-                shoppingRepository.save(item)
+            // 允许处理已完成和未完成的采购项
+            if (item != null && item.userId == userId) {
+                // 1. 如果还未完成，标记完成
+                if (!item.isCompleted) {
+                    item.isCompleted = true
+                    item.completedAt = LocalDateTime.now()
+                    shoppingRepository.save(item)
+                }
                 
                 // 2. 获取食材信息（优先使用用户自定义，否则AI推断）
                 val aiInfo = if (customInfo != null) {
@@ -246,37 +253,21 @@ class ShoppingService(
     }
 
     /**
-     * 批量勾选完成并同步到食材库
+     * 批量标记完成（保留在已完成列表，不自动同步到食材库）
      */
     @Transactional
     fun completeItems(userId: Long, itemIds: List<Long>): Int {
         var count = 0
-        val completedItems = mutableListOf<ShoppingItem>()
         
-        // 1. 标记完成
+        // 标记完成（保留在已完成列表，让用户手动同步）
         itemIds.forEach { id ->
             val item = shoppingRepository.findById(id).orElse(null)
             if (item != null && item.userId == userId && !item.isCompleted) {
                 item.isCompleted = true
                 item.completedAt = LocalDateTime.now()
                 shoppingRepository.save(item)
-                completedItems.add(item)
                 count++
             }
-        }
-        
-        // 2. 自动同步到食材库
-        completedItems.forEach { item ->
-            val ingredient = com.recipe.entity.Ingredient(
-                userId = userId,
-                name = item.name,
-                category = item.category,
-                quantity = item.quantity,
-                unit = item.unit
-            )
-            ingredientService.addIngredient(ingredient)
-            // 删除已同步的采购项
-            shoppingRepository.delete(item)
         }
         
         return count
@@ -337,6 +328,17 @@ class ShoppingService(
         
         shoppingRepository.delete(item)
     }
+    
+    /**
+     * 清空所有已完成采购项
+     */
+    @Transactional
+    fun clearAllCompleted(userId: Long): Int {
+        val completedItems = shoppingRepository.findByUserIdAndIsCompletedTrue(userId)
+        val count = completedItems.size
+        shoppingRepository.deleteAll(completedItems)
+        return count
+    }
 
     /**
      * 缺少食材一键加入采购清单
@@ -394,18 +396,18 @@ class ShoppingService(
     }
     
     /**
-     * 食材分类（与食材库统一）
+     * 食材分类（与食材库统一采用标准9大类别）
      */
     private fun categorizeIngredient(name: String): String {
         return when {
-            // 蔬菜
-            name.contains("菜") || name.contains("瓜") || name.contains("豆") || name.contains("菇") ||
-            name.contains("茄") || name.contains("椒") || name.contains("笋") || name.contains("葱") ||
-            name.contains("蒜") || name.contains("姜") || name.contains("芹") || name.contains("菠") -> "蔬菜"
+            // 蔬菜类
+            name.contains("菜") || name.contains("瓜") || name.contains("茄") || name.contains("菇") ||
+            name.contains("笋") || name.contains("葱") || name.contains("姜") || name.contains("芹") ||
+            name.contains("菠") || name.contains("山药") -> "蔬菜类"
             // 水果
-            name.contains("果") || name.contains("瓜") || name.contains("莓") || name.contains("桃") ||
+            name.contains("果") || name.contains("莓") || name.contains("桃") ||
             name.contains("梨") || name.contains("苹") || name.contains("橙") || name.contains("柠") ||
-            name.contains("芒") || name.contains("西") || name.contains("柿") || name.contains("蕉") -> "水果"
+            name.contains("芒") || name.contains("柿") || name.contains("蕉") -> "水果"
             // 肉类
             name.contains("肉") || name.contains("鸡") || name.contains("鸭") || name.contains("鹅") ||
             name.contains("牛") || name.contains("羊") || name.contains("猪") || name.contains("排") ||
@@ -413,22 +415,28 @@ class ShoppingService(
             // 海鲜
             name.contains("鱼") || name.contains("虾") || name.contains("蟹") || name.contains("贝") ||
             name.contains("鱿") || name.contains("参") || name.contains("鲍") || name.contains("蚝") ||
-            name.contains("蛤") || name.contains("螺") || name.contains("带") -> "海鲜"
+            name.contains("蛤") || name.contains("螺") -> "海鲜"
             // 蛋奶
-            name.contains("蛋") || name.contains("奶") || name.contains("乳") || name.contains("酪") ||
-            name.contains("黄") || name.contains("奶") -> "蛋奶"
-            // 调味品
+            name.contains("蛋") || name.contains("奶") || name.contains("乳") || name.contains("酪") ->
+                "蛋奶"
+            // 豆制品
+            name.contains("豆腐") || name.contains("豆干") || name.contains("百叶") -> "豆制品"
+            // 调味类
             name.contains("油") || name.contains("盐") || name.contains("酱") || name.contains("醋") ||
-            name.contains("糖") || name.contains("料") || name.contains("粉") || name.contains("精") ||
-            name.contains("辣") || name.contains("椒") || name.contains("蒜") -> "调味品"
-            // 主食
+            name.contains("糖") || name.contains("料") || name.contains("精") || name.contains("辣") ->
+                "调味类"
+            // 粮油（原主食/粗粮）
             name.contains("米") || name.contains("面") || name.contains("粉") || name.contains("馒") ||
             name.contains("包") || name.contains("饺") || name.contains("饼") || name.contains("粮") ||
-            name.contains("麦") || name.contains("玉") -> "主食"
+            name.contains("麦") || name.contains("玉") -> "粮油"
             // 饮品
             name.contains("水") || name.contains("茶") || name.contains("酒") || name.contains("汁") ||
-            name.contains("饮") || name.contains("汤") || name.contains("咖") || name.contains("可") -> "饮品"
-            else -> "其他"
+            name.contains("饮") || name.contains("奶") || name.contains("咖") || name.contains("可") ||
+            name.contains("酸奶") || name.contains("牛奶") -> "饮品"
+            // 干货
+            name.contains("干") || name.contains("木耳") || name.contains("香菇") || name.contains("枣") ||
+            name.contains("枸杞") || name.contains("桂圆") -> "干货"
+            else -> "未分类"
         }
     }
     

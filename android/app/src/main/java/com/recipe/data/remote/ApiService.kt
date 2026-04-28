@@ -28,7 +28,7 @@ import retrofit2.http.*
  */
 interface ApiService {
     companion object {
-        //const val BASE_URL = "http://10.0.2.2:8080/api/"  // 模拟器使用
+        //const val BASE_URL = "http://10.31.252.77:8080/api/"  // 模拟器使用
        const val BASE_URL = "http://192.168.185.95:8080/api/"  // 真机使用 - WiFi IP
     }
 

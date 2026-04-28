@@ -190,8 +190,12 @@ class RecipeService(
         var missingIngredients: List<String> = emptyList()
         
         if (userId != null) {
-            // 检查用户是否有足够的食材
+            // 检查用户是否有足够的食材（排除已过期的食材，过期食材不可用）
             val userIngredients = ingredientRepository.findByUserIdAndIsConsumedFalse(userId)
+                .filter { ingredient ->
+                    val remaining = ingredient.getRemainingDays()
+                    remaining == null || remaining >= 0
+                }
             val userIngredientNames = userIngredients.map { it.name }.toSet()
             
             val recipeIngredients: List<com.recipe.ai.RecipeIngredient> = 

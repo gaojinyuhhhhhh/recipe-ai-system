@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.recipe.entity.Freshness
 import com.recipe.entity.StorageMethod
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.LocalDate
 
@@ -16,6 +17,7 @@ class IngredientRecognizer(
     private val aiClient: TongYiAiClient,
     private val objectMapper: ObjectMapper
 ) {
+    private val log = LoggerFactory.getLogger(IngredientRecognizer::class.java)
     
     /**
      * 识别食材图片
@@ -49,12 +51,16 @@ class IngredientRecognizer(
         """.trimIndent()
         
         try {
+            log.info("开始识别食材图片，Base64长度: {}", imageBase64.length)
             val response = aiClient.recognizeImage(imageBase64, prompt)
+            log.info("AI识别响应内容: {}", response.content.take(500))
             val jsonContent = extractJson(response.content)
+            log.debug("提取的JSON: {}", jsonContent.take(500))
             val result: RecognitionResult = objectMapper.readValue(jsonContent)
-            
+            log.info("识别完成，共识别 {} 种食材", result.items.size)
             return result.items
         } catch (e: Exception) {
+            log.error("食材识别失败: {}", e.message, e)
             throw Exception("食材识别失败: ${e.message}", e)
         }
     }

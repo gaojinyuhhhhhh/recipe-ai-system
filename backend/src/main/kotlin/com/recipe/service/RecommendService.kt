@@ -33,7 +33,12 @@ class RecommendService(
         val user = userRepository.findById(userId).orElse(null) 
             ?: throw Exception("用户不存在")
         
+        // 只使用未过期的食材进行推荐，避免推荐使用已过期食材
         val userIngredients = ingredientRepository.findByUserIdAndIsConsumedFalse(userId)
+            .filter { ingredient ->
+                val remaining = ingredient.getRemainingDays()
+                remaining == null || remaining >= 0
+            }
         val allRecipes = recipeRepository.findByIsPublicTrue()
         
         // 计算推荐分数
@@ -263,6 +268,10 @@ class RecommendService(
      */
     fun smartCombineExpiring(userId: Long): List<IngredientCombination> {
         val userIngredients = ingredientRepository.findByUserIdAndIsConsumedFalse(userId)
+            .filter { ingredient ->
+                val remaining = ingredient.getRemainingDays()
+                remaining == null || remaining >= 0  // 排除已过期食材
+            }
         val expiringIngredients = userIngredients.filter { ingredient ->
             val remaining = ingredient.getRemainingDays()
             remaining != null && remaining <= 7

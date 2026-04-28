@@ -124,6 +124,20 @@ class ShoppingController(
             ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "删除失败"))
         }
     }
+    
+    /**
+     * 清空所有已完成采购项
+     */
+    @DeleteMapping("/completed/clear")
+    fun clearCompletedItems(): ResponseEntity<ApiResponse<String>> {
+        return try {
+            val userId = currentUserId()
+            val count = shoppingService.clearAllCompleted(userId)
+            ResponseEntity.ok(ApiResponse.success("cleared", "已清空 $count 个采购项"))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "清空失败"))
+        }
+    }
 }
 
 data class MergeRequest(val recipeIds: List<Long>)

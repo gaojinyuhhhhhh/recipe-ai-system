@@ -9,5 +9,6 @@
         <!-- 真机调试：添加电脑的IP -->
         <domain includeSubdomains="true">192.168.189.1</domain>
         <domain includeSubdomains="true">192.168.185.95</domain>
+        <domain includeSubdomains="true">10.31.252.77</domain>
     </domain-config>
 </network-security-config>

@@ -153,6 +153,18 @@ class IngredientService(
     }
     
     /**
+     * 查询用户所有未过期的食材（用于推荐食谱等场景）
+     * 排除已过期（remainingDays < 0）的食材，避免推荐使用过期食材
+     */
+    fun getAvailableIngredients(userId: Long): List<Ingredient> {
+        return ingredientRepository.findByUserIdAndIsConsumedFalse(userId)
+            .filter { ingredient ->
+                val remaining = ingredient.getRemainingDays()
+                remaining == null || remaining >= 0
+            }
+    }
+    
+    /**
      * 查询临期食材(7天内)
      */
     fun getExpiringIngredients(userId: Long): List<Ingredient> {

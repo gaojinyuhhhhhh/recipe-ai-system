@@ -156,7 +156,7 @@ class IngredientController(
 
     /**
      * 获取按新鲜度分组的食材
-     * 返回: { "expiringSoon": [...], "fresh": [...], "longTerm": [...] }
+     * 返回: { "expired": [...], "expiringSoon": [...], "fresh": [...], "longTerm": [...] }
      */
     @GetMapping("/by-freshness")
     fun getIngredientsByFreshness(): ResponseEntity<ApiResponse<Map<String, List<Ingredient>>>> {
@@ -167,14 +167,16 @@ class IngredientController(
         val grouped = ingredients.groupBy { ingredient ->
             val remaining = ingredient.getRemainingDays() ?: Int.MAX_VALUE
             when {
-                remaining <= 3 -> "expiringSoon"  // 3天内过期
-                remaining <= 7 -> "fresh"          // 4-7天
-                else -> "longTerm"                 // 7天以上
+                remaining < 0 -> "expired"           // 已过期
+                remaining <= 3 -> "expiringSoon"     // 3天内过期
+                remaining <= 7 -> "fresh"             // 4-7天
+                else -> "longTerm"                    // 7天以上
             }
         }
         
         // 确保所有分组都存在
         val result = mapOf(
+            "expired" to (grouped["expired"] ?: emptyList()),
             "expiringSoon" to (grouped["expiringSoon"] ?: emptyList()),
             "fresh" to (grouped["fresh"] ?: emptyList()),
             "longTerm" to (grouped["longTerm"] ?: emptyList())
@@ -198,8 +200,8 @@ class IngredientController(
             "蔬菜" to "蔬菜类",
             "调味品" to "调味类",
             "主食" to "粮油",
-            "饮品" to "干货",
-            "其他" to "未分类"
+            "其他" to "未分类",
+            "肉蛋类" to "肉类"  // 合并到肉类
         )
         
         // 按类别分组，null类别的归为"未分类"，同时进行类别名称标准化

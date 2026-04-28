@@ -59,16 +59,19 @@ fun CookingModeScreen(
     val isStepTimerFinished by cookingViewModel.isStepTimerFinished.collectAsState()
     val isComplete by cookingViewModel.isComplete.collectAsState()
     val isVoiceEnabled by cookingViewModel.isVoiceEnabled.collectAsState()
+    val isTtsAvailable by cookingViewModel.isTtsAvailable.collectAsState()
 
     val context = LocalContext.current
 
     var showStepList by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
 
-    // 进入时加载数据并初始化TTS
+    // 进入时先初始化TTS，然后延迟加载数据以确保TTS准备就绪
     LaunchedEffect(Unit) {
-        cookingViewModel.loadFromHolder()
         cookingViewModel.initTts()
+        // 给TTS引擎一些时间初始化，然后再加载数据
+        kotlinx.coroutines.delay(200)
+        cookingViewModel.loadFromHolder()
     }
 
     // 步骤倒计时结束时，播放提示音+震动
@@ -112,13 +115,15 @@ fun CookingModeScreen(
                     }
                 },
                 actions = {
-                    // 语音开关按钮
-                    IconButton(onClick = { cookingViewModel.toggleVoice() }) {
-                        Icon(
-                            if (isVoiceEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-                            contentDescription = if (isVoiceEnabled) "关闭语音" else "开启语音",
-                            tint = if (isVoiceEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    // 语音开关按钮（仅TTS可用时显示）
+                    if (isTtsAvailable) {
+                        IconButton(onClick = { cookingViewModel.toggleVoice() }) {
+                            Icon(
+                                if (isVoiceEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                                contentDescription = if (isVoiceEnabled) "关闭语音" else "开启语音",
+                                tint = if (isVoiceEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                     IconButton(onClick = { showStepList = !showStepList }) {
                         Icon(
@@ -167,6 +172,42 @@ fun CookingModeScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
+                // TTS不可用提示条
+                if (!isTtsAvailable) {
+                    Surface(
+                        color = Color(0xFFFF9800).copy(alpha = 0.15f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.VolumeOff,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = Color(0xFFFF9800)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "语音播报不可用",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFE65100)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "倒计时仍通过铃声和震动提醒。如需语音播报，请安装TTS引擎并下载中文语音数据包。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFE65100)
+                            )
+                        }
+                    }
+                }
+
                 // 进度条
                 LinearProgressIndicator(
                     progress = cookingViewModel.progress,

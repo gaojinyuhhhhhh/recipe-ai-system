@@ -68,7 +68,7 @@ ai:
       text: qwen-turbo  # 文本生成模型
       vision: qwen-vl-plus  # 视觉识别模型
       voice: cosyvoice-v1  # 语音合成模型
-    timeout: 30000  # 超时时间(毫秒)
+    timeout: 60000  # 超时时间(毫秒)
     max-tokens: 2000
 
 # 日志配置

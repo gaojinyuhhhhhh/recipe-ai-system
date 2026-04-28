@@ -5,6 +5,7 @@ import com.recipe.ai.RecipeGenerationRequest
 import com.recipe.ai.RecipeGenerator
 import com.recipe.ai.TongYiAiClient
 import com.recipe.dto.ApiResponse
+import com.recipe.service.IngredientService
 import com.recipe.service.RecipeService
 import com.recipe.service.ShoppingService
 import com.recipe.service.UserService
@@ -23,7 +24,8 @@ class AiController(
     private val recipeService: RecipeService,
     private val shoppingService: ShoppingService,
     private val ingredientRecognizer: IngredientRecognizer,
-    private val userService: UserService
+    private val userService: UserService,
+    private val ingredientService: IngredientService
 ) : BaseController() {
     
     /**
@@ -86,9 +88,19 @@ class AiController(
         @RequestBody request: QuickRecipeRequest
     ): ResponseEntity<ApiResponse<Any>> {
         return try {
-            currentUserId() // 验证登录状态
+            val userId = currentUserId()
+
+            // 过滤掉已过期的食材
+            val availableIngredientNames = ingredientService.getAvailableIngredients(userId)
+                .map { it.name }.toSet()
+            val validIngredients = request.ingredients.filter { it in availableIngredientNames }
+
+            if (validIngredients.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.error("没有可用的未过期食材，请先更新食材库"))
+            }
+
             val generationRequest = RecipeGenerationRequest(
-                availableIngredients = request.ingredients,
+                availableIngredients = validIngredients,
                 cookingTime = request.timeLimit ?: 30,
                 difficulty = "EASY"
             )
@@ -313,7 +325,19 @@ class AiController(
         @RequestBody request: SuggestByIngredientsRequest
     ): ResponseEntity<ApiResponse<Any>> {
         return try {
-            currentUserId()
+            val userId = currentUserId()
+
+            // 从食材库中获取用户所有未过期食材，用于校验前端传入的食材是否过期
+            val availableIngredientNames = ingredientService.getAvailableIngredients(userId)
+                .map { it.name }
+                .toSet()
+
+            // 过滤掉已过期的食材，只保留未过期的
+            val validIngredients = request.ingredients.filter { it in availableIngredientNames }
+
+            if (validIngredients.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.error("没有可用的未过期食材，请先更新食材库"))
+            }
 
             val systemPrompt = """
                 你是一位资深厨师和营养师。根据用户提供的食材，推荐3-5道可以制作的菜品。
@@ -322,7 +346,7 @@ class AiController(
 
             val prefStr = if (request.preferences != null) "\n用户偏好: ${request.preferences}" else ""
             val prompt = """
-                我冰箱里有这些食材: ${request.ingredients.joinToString("、")}
+                我冰箱里有这些食材: ${validIngredients.joinToString("、")}
                 $prefStr
                 
                 请推荐3-5道菜，返回JSON格式(纯JSON无其他文字):
