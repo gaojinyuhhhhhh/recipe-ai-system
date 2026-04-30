@@ -37,6 +37,8 @@ public final class LocalRecipeDao_Impl implements LocalRecipeDao {
 
   private final EntityInsertionAdapter<LocalRecipeEntity> __insertionAdapterOfLocalRecipeEntity;
 
+  private final EntityInsertionAdapter<LocalRecipeEntity> __insertionAdapterOfLocalRecipeEntity_1;
+
   private final EntityDeletionOrUpdateAdapter<LocalRecipeEntity> __deletionAdapterOfLocalRecipeEntity;
 
   private final EntityDeletionOrUpdateAdapter<LocalRecipeEntity> __updateAdapterOfLocalRecipeEntity;
@@ -52,6 +54,62 @@ public final class LocalRecipeDao_Impl implements LocalRecipeDao {
       @NonNull
       protected String createQuery() {
         return "INSERT OR REPLACE INTO `local_recipes` (`id`,`serverId`,`userId`,`title`,`description`,`coverImage`,`ingredients`,`steps`,`cookingTime`,`difficulty`,`cuisine`,`tags`,`syncStatus`,`originalAuthor`,`createdAt`,`updatedAt`) VALUES (nullif(?, 0),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+      }
+
+      @Override
+      protected void bind(@NonNull final SupportSQLiteStatement statement,
+          @NonNull final LocalRecipeEntity entity) {
+        statement.bindLong(1, entity.getId());
+        if (entity.getServerId() == null) {
+          statement.bindNull(2);
+        } else {
+          statement.bindLong(2, entity.getServerId());
+        }
+        statement.bindLong(3, entity.getUserId());
+        statement.bindString(4, entity.getTitle());
+        if (entity.getDescription() == null) {
+          statement.bindNull(5);
+        } else {
+          statement.bindString(5, entity.getDescription());
+        }
+        if (entity.getCoverImage() == null) {
+          statement.bindNull(6);
+        } else {
+          statement.bindString(6, entity.getCoverImage());
+        }
+        statement.bindString(7, entity.getIngredients());
+        statement.bindString(8, entity.getSteps());
+        if (entity.getCookingTime() == null) {
+          statement.bindNull(9);
+        } else {
+          statement.bindLong(9, entity.getCookingTime());
+        }
+        statement.bindString(10, entity.getDifficulty());
+        if (entity.getCuisine() == null) {
+          statement.bindNull(11);
+        } else {
+          statement.bindString(11, entity.getCuisine());
+        }
+        if (entity.getTags() == null) {
+          statement.bindNull(12);
+        } else {
+          statement.bindString(12, entity.getTags());
+        }
+        statement.bindString(13, entity.getSyncStatus());
+        if (entity.getOriginalAuthor() == null) {
+          statement.bindNull(14);
+        } else {
+          statement.bindString(14, entity.getOriginalAuthor());
+        }
+        statement.bindLong(15, entity.getCreatedAt());
+        statement.bindLong(16, entity.getUpdatedAt());
+      }
+    };
+    this.__insertionAdapterOfLocalRecipeEntity_1 = new EntityInsertionAdapter<LocalRecipeEntity>(__db) {
+      @Override
+      @NonNull
+      protected String createQuery() {
+        return "INSERT OR IGNORE INTO `local_recipes` (`id`,`serverId`,`userId`,`title`,`description`,`coverImage`,`ingredients`,`steps`,`cookingTime`,`difficulty`,`cuisine`,`tags`,`syncStatus`,`originalAuthor`,`createdAt`,`updatedAt`) VALUES (nullif(?, 0),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -203,6 +261,25 @@ public final class LocalRecipeDao_Impl implements LocalRecipeDao {
           final Long _result = __insertionAdapterOfLocalRecipeEntity.insertAndReturnId(recipe);
           __db.setTransactionSuccessful();
           return _result;
+        } finally {
+          __db.endTransaction();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object insertAll(final List<LocalRecipeEntity> recipes,
+      final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        __db.beginTransaction();
+        try {
+          __insertionAdapterOfLocalRecipeEntity_1.insert(recipes);
+          __db.setTransactionSuccessful();
+          return Unit.INSTANCE;
         } finally {
           __db.endTransaction();
         }
@@ -971,6 +1048,140 @@ public final class LocalRecipeDao_Impl implements LocalRecipeDao {
             _result = _tmp;
           } else {
             _result = 0;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object getUnsyncedRecipes(final long userId,
+      final Continuation<? super List<LocalRecipeEntity>> $completion) {
+    final String _sql = "SELECT * FROM local_recipes WHERE userId = ? AND serverId IS NULL AND syncStatus = 'LOCAL'";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindLong(_argIndex, userId);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<List<LocalRecipeEntity>>() {
+      @Override
+      @NonNull
+      public List<LocalRecipeEntity> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfServerId = CursorUtil.getColumnIndexOrThrow(_cursor, "serverId");
+          final int _cursorIndexOfUserId = CursorUtil.getColumnIndexOrThrow(_cursor, "userId");
+          final int _cursorIndexOfTitle = CursorUtil.getColumnIndexOrThrow(_cursor, "title");
+          final int _cursorIndexOfDescription = CursorUtil.getColumnIndexOrThrow(_cursor, "description");
+          final int _cursorIndexOfCoverImage = CursorUtil.getColumnIndexOrThrow(_cursor, "coverImage");
+          final int _cursorIndexOfIngredients = CursorUtil.getColumnIndexOrThrow(_cursor, "ingredients");
+          final int _cursorIndexOfSteps = CursorUtil.getColumnIndexOrThrow(_cursor, "steps");
+          final int _cursorIndexOfCookingTime = CursorUtil.getColumnIndexOrThrow(_cursor, "cookingTime");
+          final int _cursorIndexOfDifficulty = CursorUtil.getColumnIndexOrThrow(_cursor, "difficulty");
+          final int _cursorIndexOfCuisine = CursorUtil.getColumnIndexOrThrow(_cursor, "cuisine");
+          final int _cursorIndexOfTags = CursorUtil.getColumnIndexOrThrow(_cursor, "tags");
+          final int _cursorIndexOfSyncStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "syncStatus");
+          final int _cursorIndexOfOriginalAuthor = CursorUtil.getColumnIndexOrThrow(_cursor, "originalAuthor");
+          final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+          final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
+          final List<LocalRecipeEntity> _result = new ArrayList<LocalRecipeEntity>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final LocalRecipeEntity _item;
+            final long _tmpId;
+            _tmpId = _cursor.getLong(_cursorIndexOfId);
+            final Long _tmpServerId;
+            if (_cursor.isNull(_cursorIndexOfServerId)) {
+              _tmpServerId = null;
+            } else {
+              _tmpServerId = _cursor.getLong(_cursorIndexOfServerId);
+            }
+            final long _tmpUserId;
+            _tmpUserId = _cursor.getLong(_cursorIndexOfUserId);
+            final String _tmpTitle;
+            _tmpTitle = _cursor.getString(_cursorIndexOfTitle);
+            final String _tmpDescription;
+            if (_cursor.isNull(_cursorIndexOfDescription)) {
+              _tmpDescription = null;
+            } else {
+              _tmpDescription = _cursor.getString(_cursorIndexOfDescription);
+            }
+            final String _tmpCoverImage;
+            if (_cursor.isNull(_cursorIndexOfCoverImage)) {
+              _tmpCoverImage = null;
+            } else {
+              _tmpCoverImage = _cursor.getString(_cursorIndexOfCoverImage);
+            }
+            final String _tmpIngredients;
+            _tmpIngredients = _cursor.getString(_cursorIndexOfIngredients);
+            final String _tmpSteps;
+            _tmpSteps = _cursor.getString(_cursorIndexOfSteps);
+            final Integer _tmpCookingTime;
+            if (_cursor.isNull(_cursorIndexOfCookingTime)) {
+              _tmpCookingTime = null;
+            } else {
+              _tmpCookingTime = _cursor.getInt(_cursorIndexOfCookingTime);
+            }
+            final String _tmpDifficulty;
+            _tmpDifficulty = _cursor.getString(_cursorIndexOfDifficulty);
+            final String _tmpCuisine;
+            if (_cursor.isNull(_cursorIndexOfCuisine)) {
+              _tmpCuisine = null;
+            } else {
+              _tmpCuisine = _cursor.getString(_cursorIndexOfCuisine);
+            }
+            final String _tmpTags;
+            if (_cursor.isNull(_cursorIndexOfTags)) {
+              _tmpTags = null;
+            } else {
+              _tmpTags = _cursor.getString(_cursorIndexOfTags);
+            }
+            final String _tmpSyncStatus;
+            _tmpSyncStatus = _cursor.getString(_cursorIndexOfSyncStatus);
+            final String _tmpOriginalAuthor;
+            if (_cursor.isNull(_cursorIndexOfOriginalAuthor)) {
+              _tmpOriginalAuthor = null;
+            } else {
+              _tmpOriginalAuthor = _cursor.getString(_cursorIndexOfOriginalAuthor);
+            }
+            final long _tmpCreatedAt;
+            _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+            final long _tmpUpdatedAt;
+            _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
+            _item = new LocalRecipeEntity(_tmpId,_tmpServerId,_tmpUserId,_tmpTitle,_tmpDescription,_tmpCoverImage,_tmpIngredients,_tmpSteps,_tmpCookingTime,_tmpDifficulty,_tmpCuisine,_tmpTags,_tmpSyncStatus,_tmpOriginalAuthor,_tmpCreatedAt,_tmpUpdatedAt);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object getAllServerIds(final long userId,
+      final Continuation<? super List<Long>> $completion) {
+    final String _sql = "SELECT serverId FROM local_recipes WHERE userId = ? AND serverId IS NOT NULL";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindLong(_argIndex, userId);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<List<Long>>() {
+      @Override
+      @NonNull
+      public List<Long> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final List<Long> _result = new ArrayList<Long>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final Long _item;
+            _item = _cursor.getLong(0);
+            _result.add(_item);
           }
           return _result;
         } finally {

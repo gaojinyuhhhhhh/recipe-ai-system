@@ -1,46 +1,42 @@
 [
     {
-        "merged": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-debug-64:\\xml_data_extraction_rules.xml.flat",
-        "source": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-main-66:\\xml\\data_extraction_rules.xml"
+        "merged": "com.recipe.app-debug-64:/xml_backup_rules.xml.flat",
+        "source": "com.recipe.app-main-66:/xml/backup_rules.xml"
     },
     {
-        "merged": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-debug-64:\\drawable_ic_launcher_background.xml.flat",
-        "source": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-main-66:\\drawable\\ic_launcher_background.xml"
+        "merged": "com.recipe.app-debug-64:/xml_file_paths.xml.flat",
+        "source": "com.recipe.app-main-66:/xml/file_paths.xml"
     },
     {
-        "merged": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-debug-64:\\xml_file_paths.xml.flat",
-        "source": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-main-66:\\xml\\file_paths.xml"
+        "merged": "com.recipe.app-debug-64:/xml_data_extraction_rules.xml.flat",
+        "source": "com.recipe.app-main-66:/xml/data_extraction_rules.xml"
     },
     {
-        "merged": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-debug-64:\\drawable_logo_new.png.flat",
-        "source": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-main-66:\\drawable\\logo_new.png"
+        "merged": "com.recipe.app-debug-64:/drawable_logo_new.png.flat",
+        "source": "com.recipe.app-main-66:/drawable/logo_new.png"
     },
     {
-        "merged": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-debug-64:\\xml_backup_rules.xml.flat",
-        "source": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-main-66:\\xml\\backup_rules.xml"
+        "merged": "com.recipe.app-debug-64:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.recipe.app-main-66:/drawable/ic_launcher_foreground.xml"
     },
     {
-        "merged": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-debug-64:\\drawable_ic_launcher_foreground.xml.flat",
-        "source": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-main-66:\\drawable\\ic_launcher_foreground.xml"
+        "merged": "com.recipe.app-debug-64:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.recipe.app-main-66:/drawable/ic_launcher_background.xml"
     },
     {
-        "merged": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-debug-64:\\xml_network_security_config.xml.flat",
-        "source": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-main-66:\\xml\\network_security_config.xml"
+        "merged": "com.recipe.app-debug-64:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.recipe.app-main-66:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.recipe.app-debug-64:/drawable_ic_ingredient_placeholder.xml.flat",
+        "source": "com.recipe.app-main-66:/drawable/ic_ingredient_placeholder.xml"
     },
     {
         "merged": "com.recipe.app-debug-64:/xml_network_security_config.xml.flat",
         "source": "com.recipe.app-main-66:/xml/network_security_config.xml"
     },
     {
-        "merged": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-debug-64:\\drawable_ic_ingredient_placeholder.xml.flat",
-        "source": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-main-66:\\drawable\\ic_ingredient_placeholder.xml"
-    },
-    {
-        "merged": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-debug-64:\\mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-main-66:\\mipmap-anydpi-v26\\ic_launcher.xml"
-    },
-    {
-        "merged": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-debug-64:\\mipmap-anydpi-v26_ic_launcher_round.xml.flat",
-        "source": "D:\\SDK\\.gradle\\daemon\\8.9\\com.recipe.app-main-66:\\mipmap-anydpi-v26\\ic_launcher_round.xml"
+        "merged": "com.recipe.app-debug-64:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.recipe.app-main-66:/mipmap-anydpi-v26/ic_launcher.xml"
     }
 ]

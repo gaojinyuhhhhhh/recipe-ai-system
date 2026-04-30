@@ -1,6 +1,7 @@
 package com.recipe.ui.recipe
 
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -45,6 +46,11 @@ import kotlinx.coroutines.launch
  * - AI回复自动语音播报
  * - 支持查看对话历史
  * - 轻量浮层设计，不遮挡烹饪界面
+ *
+ * 语音输入三层兜底：
+ * - SpeechRecognizer API → 最佳体验
+ * - Intent系统弹窗 → 兼容性好
+ * - 键盘文字输入 → 最终兜底（可用键盘语音按钮）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,15 +76,18 @@ fun CookingVoiceChatPanel(
     val recognizedText by speechHelper.recognizedText.collectAsState()
     val partialText by speechHelper.partialText.collectAsState()
     val sttError by speechHelper.error.collectAsState()
-    val isSttUnavailable by speechHelper.isSttUnavailable.collectAsState()
+    val voiceMode by speechHelper.voiceInputMode.collectAsState()
 
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
-    // 文字输入兜底
+    // 文字输入
     var textInput by remember { mutableStateOf("") }
-    // 是否显示文字输入框（STT不可用时自动显示，也可手动切换）
-    var showTextInput by remember { mutableStateOf(false) }
+    // 是否显示文字输入框
+    // KEYBOARD_ONLY 模式默认显示文字输入，其他模式默认显示麦克风
+    var showTextInput by remember(voiceMode) {
+        mutableStateOf(voiceMode == SpeechRecognizerHelper.VoiceInputMode.KEYBOARD_ONLY)
+    }
 
     // 运行时录音权限
     var hasAudioPermission by remember {
@@ -91,8 +100,19 @@ fun CookingVoiceChatPanel(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         hasAudioPermission = granted
-        if (granted) {
+        // 权限获取后，直接尝试启动语音识别
+        // Intent模式下用户需再次点击麦克风按钮触发
+        if (granted && voiceMode == SpeechRecognizerHelper.VoiceInputMode.SPEECH_RECOGNIZER) {
             speechHelper.startListening()
+        }
+    }
+
+    // Intent方式语音识别（系统弹窗）
+    val intentSpeechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            speechHelper.handleIntentResult(result.data)
         }
     }
 
@@ -129,6 +149,13 @@ fun CookingVoiceChatPanel(
     LaunchedEffect(isSpeaking) {
         if (isSpeaking && isListening) {
             speechHelper.cancel()
+        }
+    }
+
+    // voiceMode降级时自动切换到文字输入
+    LaunchedEffect(voiceMode) {
+        if (voiceMode == SpeechRecognizerHelper.VoiceInputMode.KEYBOARD_ONLY) {
+            showTextInput = true
         }
     }
 
@@ -228,20 +255,33 @@ fun CookingVoiceChatPanel(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Icon(
-                                    Icons.Default.Mic,
+                                    if (voiceMode == SpeechRecognizerHelper.VoiceInputMode.KEYBOARD_ONLY)
+                                        Icons.Default.Keyboard else Icons.Default.Mic,
                                     contentDescription = null,
                                     modifier = Modifier.size(40.dp),
                                     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    "点击下方麦克风按钮说话",
+                                    when (voiceMode) {
+                                        SpeechRecognizerHelper.VoiceInputMode.KEYBOARD_ONLY ->
+                                            "输入问题与AI对话"
+                                        SpeechRecognizerHelper.VoiceInputMode.INTENT ->
+                                            "点击麦克风按钮开始语音输入"
+                                        SpeechRecognizerHelper.VoiceInputMode.SPEECH_RECOGNIZER ->
+                                            "点击下方麦克风按钮说话"
+                                    },
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    "试试说：\"现在该放盐了吗？\"",
+                                    when (voiceMode) {
+                                        SpeechRecognizerHelper.VoiceInputMode.KEYBOARD_ONLY ->
+                                            "输入问题，如：\"现在该放盐了吗？\"\n提示：点击键盘上的语音按钮也可以语音输入"
+                                        else ->
+                                            "试试说：\"现在该放盐了吗？\""
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.outline
                                 )
@@ -334,8 +374,9 @@ fun CookingVoiceChatPanel(
                             }
                         }
 
-                        // 文字输入框（STT不可用时自动显示，或用户手动切换）
-                        if (showTextInput || isSttUnavailable) {
+                        // 输入区域
+                        if (showTextInput) {
+                            // 文字输入模式
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
@@ -344,7 +385,14 @@ fun CookingVoiceChatPanel(
                                     value = textInput,
                                     onValueChange = { textInput = it },
                                     modifier = Modifier.weight(1f),
-                                    placeholder = { Text("输入问题...", style = MaterialTheme.typography.bodySmall) },
+                                    placeholder = {
+                                        Text(
+                                            if (voiceMode == SpeechRecognizerHelper.VoiceInputMode.KEYBOARD_ONLY)
+                                                "输入问题（可用键盘语音按钮）"
+                                            else "输入问题...",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    },
                                     maxLines = 2,
                                     textStyle = MaterialTheme.typography.bodySmall,
                                     shape = RoundedCornerShape(20.dp),
@@ -369,8 +417,8 @@ fun CookingVoiceChatPanel(
                                 ) {
                                     Icon(Icons.Default.Send, contentDescription = "发送", modifier = Modifier.size(18.dp))
                                 }
-                                // 可切换回语音模式（仅STT可用时）
-                                if (!isSttUnavailable) {
+                                // 可切换回语音模式（仅语音可用时）
+                                if (voiceMode != SpeechRecognizerHelper.VoiceInputMode.KEYBOARD_ONLY) {
                                     Spacer(modifier = Modifier.width(4.dp))
                                     IconButton(
                                         onClick = { showTextInput = false },
@@ -400,10 +448,25 @@ fun CookingVoiceChatPanel(
                                         } else if (isSpeaking) {
                                             chatViewModel.stopSpeaking()
                                         } else {
-                                            if (hasAudioPermission) {
-                                                speechHelper.startListening()
-                                            } else {
+                                            if (!hasAudioPermission) {
                                                 permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                                return@MicrophoneButton
+                                            }
+                                            when (voiceMode) {
+                                                SpeechRecognizerHelper.VoiceInputMode.SPEECH_RECOGNIZER -> {
+                                                    speechHelper.startListening()
+                                                }
+                                                SpeechRecognizerHelper.VoiceInputMode.INTENT -> {
+                                                    try {
+                                                        intentSpeechLauncher.launch(speechHelper.createRecognizeSpeechIntent())
+                                                    } catch (e: Exception) {
+                                                        // Intent启动失败，切到文字输入
+                                                        showTextInput = true
+                                                    }
+                                                }
+                                                SpeechRecognizerHelper.VoiceInputMode.KEYBOARD_ONLY -> {
+                                                    showTextInput = true
+                                                }
                                             }
                                         }
                                     }

@@ -111,6 +111,8 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
     init {
         loadHotRecipes()
         loadLocalRecipes()
+        // 启动时自动同步本地食谱（跨设备同步）
+        syncLocalRecipes()
     }
 
     // ==================== 本地食谱操作 ====================
@@ -131,7 +133,8 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
-                // 重新加载本地食谱
+                // 先执行云端同步，再重新加载本地食谱
+                syncLocalRecipes()
                 loadLocalRecipes()
                 // 同时刷新我的云端食谱（用于同步状态）
                 loadMyRecipes()
@@ -139,6 +142,86 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
                 Log.e("RecipeViewModel", "刷新失败: ${e.message}")
             } finally {
                 _isRefreshing.value = false
+            }
+        }
+    }
+
+    /**
+     * 本地食谱云端同步（跨设备同步核心逻辑）
+     * 策略：
+     * 1. 将本地未同步的食谱上传到云端，回填 serverId
+     * 2. 从云端拉取用户的私有食谱，将本地不存在的插入到 Room
+     */
+    fun syncLocalRecipes() {
+        val userId = TokenManager.getUserId()
+        if (userId == 0L) return
+        viewModelScope.launch {
+            try {
+                // Step 1: 上传本地未同步的食谱到云端
+                val unsyncedRecipes = dao.getUnsyncedRecipes(userId)
+                if (unsyncedRecipes.isNotEmpty()) {
+                    val uploadList = unsyncedRecipes.map { recipe ->
+                        mapOf<String, Any?>(
+                            "title" to recipe.title,
+                            "description" to recipe.description,
+                            "coverImage" to recipe.coverImage,
+                            "ingredients" to recipe.ingredients,
+                            "steps" to recipe.steps,
+                            "cookingTime" to recipe.cookingTime,
+                            "difficulty" to recipe.difficulty,
+                            "cuisine" to recipe.cuisine,
+                            "tags" to recipe.tags,
+                            "isAiGenerated" to false
+                        )
+                    }
+                    val uploadResponse = api.uploadLocalRecipes(uploadList)
+                    if (uploadResponse.success && uploadResponse.data != null) {
+                        // 回填 serverId 到本地记录
+                        val serverRecipes = uploadResponse.data
+                        for (i in unsyncedRecipes.indices) {
+                            if (i < serverRecipes.size) {
+                                val serverId = serverRecipes[i].id
+                                if (serverId != null) {
+                                    dao.updateSyncStatus(
+                                        unsyncedRecipes[i].id,
+                                        "SYNCED",
+                                        serverId
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Step 2: 从云端拉取用户的私有食谱，合并到本地
+                val syncResponse = api.getLocalSyncRecipes()
+                if (syncResponse.success && syncResponse.data != null) {
+                    val existingServerIds = dao.getAllServerIds(userId).toSet()
+                    val newRecipes = syncResponse.data
+                        .filter { it.id != null && it.id !in existingServerIds }
+                        .map { recipe ->
+                            LocalRecipeEntity(
+                                serverId = recipe.id,
+                                userId = userId,
+                                title = recipe.title,
+                                description = recipe.description,
+                                coverImage = recipe.coverImage,
+                                ingredients = recipe.ingredients,
+                                steps = recipe.steps,
+                                cookingTime = recipe.cookingTime,
+                                difficulty = recipe.difficulty,
+                                cuisine = recipe.cuisine,
+                                tags = recipe.tags,
+                                syncStatus = "SYNCED"
+                            )
+                        }
+                    if (newRecipes.isNotEmpty()) {
+                        dao.insertAll(newRecipes)
+                        Log.d("RecipeViewModel", "云端同步: 新增 ${newRecipes.size} 个食谱")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("RecipeViewModel", "本地食谱同步失败: ${e.message}")
             }
         }
     }
@@ -240,9 +323,26 @@ class RecipeViewModel(application: Application) : AndroidViewModel(application) 
     fun deleteLocalRecipe(localId: Long) {
         viewModelScope.launch {
             try {
+                // 先查询本地食谱，判断是否有云端同步记录
+                val localRecipe = dao.getRecipeById(localId)
+                val serverId = localRecipe?.serverId
+
+                // 删除本地记录
                 dao.deleteById(localId)
-                _toastMessage.value = "已删除"
                 _currentLocalRecipe.value = null
+
+                // 如果有 serverId，说明已同步到云端，需要同时删除云端副本
+                // 否则下次登录同步时云端食谱会被重新拉取回来
+                if (serverId != null) {
+                    try {
+                        api.deleteRecipe(serverId)
+                        Log.d("RecipeViewModel", "云端同步食谱已删除: serverId=$serverId")
+                    } catch (e: Exception) {
+                        Log.w("RecipeViewModel", "云端删除失败(不影响本地删除): ${e.message}")
+                    }
+                }
+
+                _toastMessage.value = "已删除"
             } catch (e: Exception) {
                 _toastMessage.value = "删除失败"
             }

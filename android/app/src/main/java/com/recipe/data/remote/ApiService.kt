@@ -31,6 +31,7 @@ interface ApiService {
         //const val BASE_URL = "http://10.31.252.77:8080/api/"  // 模拟器使用
        //const val BASE_URL = "http://192.168.185.95:8080/api/"  // 真机使用 - WiFi IP
         const val BASE_URL = "http://10.45.199.95:8080/api/"  // 真机使用 - WiFi IP
+        //const val BASE_URL = "http://10.112.86.95:8080/api/"  // 真机使用 - WiFi IP
     }
 
     // ==================== 用户认证 ====================
@@ -156,6 +157,16 @@ interface ApiService {
 
     @GET("recipes/{id}/author")
     suspend fun getRecipeAuthor(@Path("id") id: Long): ApiResponse<Map<String, @JvmSuppressWildcards Any?>>
+
+    // ==================== 本地食谱云端同步 ====================
+
+    /** 获取用户的私有食谱列表（用于跨设备同步） */
+    @GET("recipes/local/sync")
+    suspend fun getLocalSyncRecipes(): ApiResponse<List<Recipe>>
+
+    /** 批量上传本地食谱到云端（用于跨设备同步） */
+    @POST("recipes/local/sync")
+    suspend fun uploadLocalRecipes(@Body recipes: List<Map<String, @JvmSuppressWildcards Any?>>): ApiResponse<List<Recipe>>
 
     // ==================== 采购清单 ====================
 

@@ -101,6 +101,17 @@ fun LocalRecipeDetailScreen(
                                     leadingIcon = { Icon(Icons.Default.CloudOff, null, tint = MaterialTheme.colorScheme.error) }
                                 )
                             }
+                            // 未发布的食谱显示发布选项
+                            if (localRecipe?.syncStatus == "LOCAL" || localRecipe?.syncStatus == "SYNCED") {
+                                DropdownMenuItem(
+                                    text = { Text("发布到社区") },
+                                    onClick = {
+                                        showMoreMenu = false
+                                        showUploadDialog = true
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.CloudUpload, null, tint = MaterialTheme.colorScheme.primary) }
+                                )
+                            }
                             // 未发布或已下架的食谱显示删除选项
                             if (localRecipe?.syncStatus != "UPLOADED") {
                                 DropdownMenuItem(
@@ -120,7 +131,7 @@ fun LocalRecipeDetailScreen(
         floatingActionButton = {
             localRecipe?.let { recipe ->
                 // 只有原创的本地食谱（非下载的）且未上传过的才显示上传按钮
-                if (recipe.syncStatus == "LOCAL") {
+                if (recipe.syncStatus == "LOCAL" || recipe.syncStatus == "SYNCED") {
                     ExtendedFloatingActionButton(
                         onClick = { showUploadDialog = true },
                         icon = { Icon(Icons.Default.CloudUpload, contentDescription = null) },

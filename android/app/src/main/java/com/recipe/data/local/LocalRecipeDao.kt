@@ -56,4 +56,16 @@ interface LocalRecipeDao {
     /** 获取本地食谱数量 */
     @Query("SELECT COUNT(*) FROM local_recipes WHERE userId = :userId")
     suspend fun getRecipeCount(userId: Long): Int
+
+    /** 获取所有未同步的本地食谱（syncStatus=LOCAL且无serverId） */
+    @Query("SELECT * FROM local_recipes WHERE userId = :userId AND serverId IS NULL AND syncStatus = 'LOCAL'")
+    suspend fun getUnsyncedRecipes(userId: Long): List<LocalRecipeEntity>
+
+    /** 获取所有已有serverId的食谱（用于同步时判重） */
+    @Query("SELECT serverId FROM local_recipes WHERE userId = :userId AND serverId IS NOT NULL")
+    suspend fun getAllServerIds(userId: Long): List<Long>
+
+    /** 批量插入食谱 */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(recipes: List<LocalRecipeEntity>)
 }
